@@ -37,6 +37,11 @@ export class Input {
       }
     },opt)
     canvas.addEventListener('pointerdown',e=>{
+      if(e.pointerType==='touch' && !e.isPrimary && active() && this.boostPointer===undefined) {
+        this.boostPointer=e.pointerId
+        canvas.setPointerCapture(e.pointerId)
+        return
+      }
       if (!e.isPrimary || e.button!==0) return
       if (e.pointerType==='mouse') {
         // Holding the throttle during countdown also works on the first flight frame.

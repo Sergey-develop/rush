@@ -1,5 +1,6 @@
 export type Phase = 'menu' | 'countdown' | 'playing' | 'paused' | 'impact' | 'over'
 export interface GameFrame {
+  pursuit?: {result?:'won'|'lost';lead:number;remaining:number}
   charge?:number
   armed?:boolean
   grazes?:number

@@ -107,6 +107,7 @@ export class Engine {
       phase:this.phase,countdown: Math.max(1,Math.min(3,Math.ceil(-this.simulationTime))),
       score:s.score,combo:s.combo,distance:s.distance,bpm:this.music.bpm,
       charge:s.charge,armed:s.armed,grazes:s.grazes,breaks:s.breaks,
+      pursuit:this.flight.pursuit,
       pulse:this.lastLight ? Math.min(1,.74*this.lastLight.beatFlash+.30*this.lastLight.transient+.18*this.lastLight.highs) : this.lastPulse,
       altitude:s.y,reason:this.reason,speed:s.speed,boostLevel:s.boostLevel,track:this.music.title,
       hint:s.next && s.next.distance <= TURN_WARNING_DISTANCE ? s.next.kind : null,

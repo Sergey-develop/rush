@@ -3,7 +3,7 @@ import {
   bonusGap, type BarrierKind, type FlightInput, type FlightOptions, type FlightState,
   type RouteEvent,
 } from '../types'
-import { normalSpeedAt, Track } from './Track'
+import { normalDistanceAt, normalSpeedAt, Track } from './Track'
 import type { SongPace } from '../audio/SongPace'
 
 const VERTICAL_SPEED = 5.9
@@ -49,6 +49,37 @@ export class Flight {
   private obstaclePoints = 0
   private boostPoints = 0
   private elapsed = 0
+  private raceStart = 0
+  private raceEnd = 0
+  private raceOrigin = 0
+  private raceResult: 'won'|'lost'|undefined
+  private resultAt = 0
+
+  private raceDistance(t:number) { return this.pace?.distanceAt(t) ?? normalDistanceAt(t) }
+  private rivalAt(t:number) {
+    return this.raceOrigin+9+1.12*(this.raceDistance(t)-this.raceDistance(this.raceStart))
+  }
+  get pursuit() {
+    if (!this.raceEnd || this.elapsed<this.raceStart || (this.raceResult && this.elapsed-this.resultAt>3)) return
+    const rival=this.rivalAt(Math.min(this.elapsed,this.raceEnd))
+    return {result:this.raceResult,lead:this.state.distance-rival,remaining:Math.max(0,this.rivalAt(this.raceEnd)-this.state.distance)}
+  }
+  rivalPose(out:{x:number;y:number;z:number;yaw:number;roll:number}) {
+    const race=this.pursuit
+    if (!race || race.result || race.lead>3 || race.lead < -70) return false
+    const d=this.state.distance-race.lead
+    this.track.sample(d,out)
+    const lane=(kind:BarrierKind)=>kind==='top'?1.82:kind==='bottom'?-1.82:-.3
+    const next=this.track.barriers.find(b=>b.distance>=d)
+    const prev=this.track.barriers.filter(b=>b.distance<d).at(-1)
+    const t=next ? clamp(1-(next.distance-d)/Math.min(11,next.distance-(prev?.distance??0)),0,1) : 0
+    const y=prev?lane(prev.kind):0
+    out.y=y+((next?lane(next.kind):y)-y)*t*t*(3-2*t)
+    const side=1.10+2.4*Math.max(0,1-(this.elapsed-this.raceStart)/.65)**2
+    out.x+=Math.cos(out.yaw)*side
+    out.z-=Math.sin(out.yaw)*side
+    return true
+  }
 
   constructor(options: FlightOptions = {}) {
     this.options = options
@@ -61,6 +92,12 @@ export class Flight {
 
   reset(pace?: SongPace) {
     this.pace = pace
+    const beat=60/(this.options.bpm??172)
+    this.raceStart=4*beat
+    this.raceEnd=Math.min(52*beat,(pace?.duration??Infinity)-1)
+    if(this.raceEnd-this.raceStart<8) this.raceEnd=0
+    this.raceResult=undefined
+    this.raceOrigin=0
     this.track = new Track(this.options, pace)
     Object.assign(this.state, initialState())
     if (pace) this.state.speed = pace.speedAt(0)
@@ -140,6 +177,12 @@ export class Flight {
     const normal = this.pace?.speedAt(this.elapsed) ?? normalSpeedAt(this.elapsed)
     this.state.speed = normal * (1 + BOOST_RATIO * motion.boostLevel)
     this.boostPoints += motion.bonus
+    if(this.elapsed<=this.raceStart) this.raceOrigin=this.state.distance
+    if(this.raceEnd && this.elapsed>this.raceStart && !this.raceResult) {
+      if(this.state.distance>=this.rivalAt(this.raceEnd)) this.raceResult='won'
+      else if(this.elapsed>=this.raceEnd) this.raceResult='lost'
+      if(this.raceResult) this.resultAt=this.elapsed
+    }
   }
 
   armImpulse() {
@@ -162,7 +205,8 @@ export class Flight {
       this.track.ensure(this.state.distance)
       const event = this.nextEvent()
       // A single step always stays inside the track's generated lookahead, even at full boost.
-      const span = Math.min(seconds - this.elapsed, 3)
+      const boundary=this.elapsed<this.raceStart?this.raceStart:this.elapsed<this.raceEnd?this.raceEnd:Infinity
+      const span = Math.min(seconds - this.elapsed, 3,boundary-this.elapsed)
       const motion = this.motion(span, held)
       const remaining = event ? event.distance - this.state.distance : Infinity
       if (!event || motion.travel + 1e-9 < remaining) {

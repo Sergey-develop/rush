@@ -5,6 +5,21 @@ import { MIN_REACTION_SECONDS, normalDistanceAt, normalSpeedAt, normalTimeAtDist
 import { DEFAULT_BPM, GAP_WIDTH, MAX_HEIGHT, PLAYER_RADIUS, SPEED, START_SPEED, MAX_BOOST_SPEED_GAIN, gapBounds, isTurn, type BarrierKind, type BeatEvent } from '../src/game/types'
 
 const neutral = { vertical: 0 }
+test('the sector can be won on boost or lost while the flight continues',()=>{
+  for(const boost of [false,true]) {
+    const flight=new Flight({bpm:122,beatmap:Array.from({length:24},(_,i)=>({beat:6*(i+1),kind:'center'}))})
+    flight.reset()
+    let outcome
+    for(let tick=1;tick<1800 && !outcome;tick++) {
+      flight.advance(tick/60,{vertical:0,boost})
+      outcome=flight.pursuit?.result
+    }
+    assert.equal(outcome,boost?'won':'lost')
+    assert.equal(flight.state.dead,false)
+    flight.reset()
+    assert.equal(flight.pursuit,undefined)
+  }
+})
 test('three grazes arm one breach; a second collision ends the run',()=>{
   const flight=new Flight({beatmap:Array.from({length:6},(_,i)=>({beat:8*(i+1),kind:'center'}))})
   for(let i=1;i<=3;i++) flight.advance(beatTime(8*i)+.01,{vertical:0,targetY:.35})
