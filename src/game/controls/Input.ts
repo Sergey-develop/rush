@@ -3,7 +3,7 @@ import type { GameSettings } from '../contracts'
 
 export class Input {
   private readonly listeners = new AbortController()
-  private drag?: {id:number,y:number,height:number}
+  private drag?: {id:number,y:number,height:number,moved:boolean}
   private target?: number
   private boostPointer?: number
   constructor(private readonly canvas: HTMLCanvasElement, active:()=>boolean, altitude:()=>number,
@@ -41,15 +41,23 @@ export class Input {
         return
       }
       if (!active()) return
-      this.drag={id:e.pointerId,y:e.clientY,height:altitude()}
+      this.drag={id:e.pointerId,y:e.clientY,height:this.target ?? altitude(),moved:false}
       canvas.setPointerCapture(e.pointerId)
     },opt)
     canvas.addEventListener('pointermove',e=>{
       if (e.pointerId!==this.drag?.id || !active()) return
       const dy=e.clientY-this.drag.y
+      this.drag.moved ||= Math.abs(dy)>6
+      if (!this.drag.moved) return
       this.target=this.drag.height-dy/Math.max(180,canvas.clientHeight)*10*settings().sensitivity*(settings().invert?-1:1)
     },opt)
     const release = (e: PointerEvent)=>{
+      const drag=this.drag
+      if (e.type==='pointerup' && drag?.id===e.pointerId && drag && !drag.moved &&
+          Math.abs(e.clientY-drag.y)<=6 && active()) {
+        const rect=canvas.getBoundingClientRect()
+        this.target=Math.max(-MAX_HEIGHT,Math.min(MAX_HEIGHT,(.5-(e.clientY-rect.top)/rect.height)*2*MAX_HEIGHT))
+      }
       if (e.pointerId===this.drag?.id) this.drag=undefined
       if (e.pointerId===this.boostPointer) this.boostPointer=undefined
     }
