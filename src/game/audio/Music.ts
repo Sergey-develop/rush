@@ -101,7 +101,7 @@ export class Music {
         this.cancelAnalysis=()=>reject(new Error('Анализ записи остановлен.'))
         worker.onmessage=({data})=>resolve(data)
         worker.onerror=event=>reject(new Error(event.message || 'Не удалось проанализировать запись.'))
-        worker.postMessage({pcm,rate,offset:this.offset},[pcm.buffer])
+        worker.postMessage({pcm,rate,bpm:this.bpm,offset:this.offset},[pcm.buffer])
       })
       this.accents=new BeatAccents(cues)
       this.sectionPace=new SongPace(pace,buffer.duration-this.offset)
