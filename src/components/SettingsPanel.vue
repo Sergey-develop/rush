@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-vue-next'
 import type { PlayerOptions } from '../ui/profile'
+import TiltControl from './TiltControl.vue'
 
 const settings=defineModel<PlayerOptions>({ required:true })
 const pointer=window.matchMedia('(pointer:coarse)')
@@ -47,6 +48,7 @@ onBeforeUnmount(()=>pointer.removeEventListener('change',updatePointer))
     <button class="race-settings-more" type="button" @click="show(pilot)">Пилот и параметры полёта <ChevronRight aria-hidden="true"/></button>
   </div>
   <div class="race-settings-extra">
+    <TiltControl v-if="touch"/>
     <div class="race-setting-line">
       <label for="sensitivity">Чувствительность</label>
       <div class="race-sensitive">

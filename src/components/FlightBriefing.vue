@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CornerUpRight, Gauge, Layers3, ScanLine } from 'lucide-vue-next'
 import '../styles/briefing.scss'
+import TiltControl from './TiltControl.vue'
 
 defineProps<{ touch: boolean; busy: boolean }>()
 defineEmits<{ start: []; back: [] }>()
@@ -21,7 +22,7 @@ defineEmits<{ start: []; back: [] }>()
         </li>
         <li v-if="touch">
           <Layers3 aria-hidden="true"/>
-          <div><h3>Соберите комбо</h3><p>Проходите проёмы подряд, чтобы получать бонус за комбо до ×8.</p></div>
+          <TiltControl/>
         </li>
         <li v-else>
           <Gauge aria-hidden="true"/>

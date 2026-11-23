@@ -1,13 +1,17 @@
 import { MAX_HEIGHT, type FlightInput } from '../types'
 import type { GameSettings } from '../contracts'
+import { tiltHeight } from './tilt'
 
 export class Input {
   private readonly listeners = new AbortController()
   private drag?: {id:number,y:number,height:number,moved:boolean}
   private target?: number
   private boostPointer?: number
+  private touchTilt?: number
+  private readonly options: ()=>GameSettings
   constructor(private readonly canvas: HTMLCanvasElement, active:()=>boolean, altitude:()=>number,
     settings:()=>GameSettings, togglePause:()=>boolean) {
+    this.options=settings
     const opt = {signal:this.listeners.signal}
     window.addEventListener('keydown',e=>{
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
@@ -53,6 +57,7 @@ export class Input {
     },opt)
     const release = (e: PointerEvent)=>{
       const drag=this.drag
+      if (drag && drag.id===e.pointerId) this.touchTilt=tiltHeight(settings().sensitivity,settings().invert)
       if (e.type==='pointerup' && drag?.id===e.pointerId && drag && !drag.moved &&
           Math.abs(e.clientY-drag.y)<=6 && active()) {
         const rect=canvas.getBoundingClientRect()
@@ -67,13 +72,19 @@ export class Input {
     window.addEventListener('blur',()=>this.clear(),opt)
   }
   read(): FlightInput {
+    const options=this.options()
+    const tilt=tiltHeight(options.sensitivity,options.invert)
+    if (!this.drag && tilt!==undefined && (this.touchTilt===undefined || Math.abs(tilt-this.touchTilt)>.18)) {
+      this.touchTilt=undefined
+      this.target=tilt
+    }
     return {vertical:0,targetY:this.target,boost:this.boostPointer!==undefined}
   }
   clear() {
     const id=this.boostPointer ?? this.drag?.id
     if (id!==undefined && this.canvas.hasPointerCapture(id)) this.canvas.releasePointerCapture(id)
     this.boostPointer=undefined
-    this.drag=undefined;this.target=undefined
+    this.drag=undefined;this.target=undefined;this.touchTilt=undefined
   }
   dispose() { this.clear();this.listeners.abort() }
 }
