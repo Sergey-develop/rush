@@ -7,3 +7,6 @@ dist/
 src/assets/music/*.local.*
 /*.mp3
 visual-check/
+
+!src/assets/music/station.local.mp3
+!src/assets/music/station.local.json

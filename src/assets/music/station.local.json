@@ -1,0 +1,15 @@
+{
+  "title": "Gone With The Wind",
+  "file": "station.local.mp3",
+  "bpm": 122,
+  "events": [
+    { "beat": 3, "kind": "center" },
+    { "beat": 6, "kind": "left" },
+    { "beat": 9, "kind": "top" },
+    { "beat": 12, "kind": "right" },
+    { "beat": 15, "kind": "bottom" },
+    { "beat": 18, "kind": "right" },
+    { "beat": 21, "kind": "center" },
+    { "beat": 24, "kind": "left" }
+  ]
+}
