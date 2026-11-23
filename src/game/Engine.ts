@@ -114,10 +114,8 @@ export class Engine {
     const token=++this.generation
     this.starting=true
     try {
-      if (!this.menuReady) await this.prepareMenu()
+      await Promise.all([this.music.prepare(), this.menuReady ? undefined : this.prepareMenu()])
       if (!this.world || this.disposed || token!==this.generation) return
-      await this.music.prepare()
-      if (this.disposed || token!==this.generation) return
       this.flight.reset(this.music.pace)
       this.input.clear()
       this.simulationTime=-3

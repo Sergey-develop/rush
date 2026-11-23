@@ -44,6 +44,9 @@ export class Music {
 
   async prepare() {
     if (!this.context) {
+      // Ask mobile browsers to route the soundtrack through media playback.
+      const session = (navigator as Navigator & {audioSession?: {type:string}}).audioSession
+      try { if (session) session.type = 'playback' } catch { /* Some embedded browsers restrict session selection. */ }
       this.context = new AudioContext({ latencyHint: 'interactive' })
       this.output = this.context.createGain()
       this.output.gain.value = this.muted ? 0 : this.volume
@@ -53,6 +56,12 @@ export class Music {
       this.songGain = this.context.createGain()
       this.songGain.connect(this.spectrum.analyser)
       this.spectrum.analyser.connect(this.output)
+      // Start a source in the tap handler, before fetching and decoding the MP3.
+      const unlock = this.context.createBufferSource()
+      unlock.buffer = this.context.createBuffer(1,1,this.context.sampleRate)
+      unlock.connect(this.output)
+      unlock.onended = () => unlock.disconnect()
+      unlock.start()
     }
     await this.context.resume()
     if (!this.buffer) {
