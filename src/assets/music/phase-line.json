@@ -1,0 +1,14 @@
+{
+  "title": "Phase Line",
+  "bpm": 172,
+  "events": [
+    { "beat": 4, "kind": "center" },
+    { "beat": 8, "kind": "left" },
+    { "beat": 12, "kind": "top" },
+    { "beat": 16, "kind": "right" },
+    { "beat": 20, "kind": "bottom" },
+    { "beat": 24, "kind": "right" },
+    { "beat": 28, "kind": "center" },
+    { "beat": 32, "kind": "left" }
+  ]
+}

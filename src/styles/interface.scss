@@ -1,0 +1,39 @@
+@font-face {
+  font-family: 'Exo 2';
+  src: url('/fonts/Exo2.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  font-family: 'Exo 2', 'Segoe UI', sans-serif;
+  font-synthesis: none;
+  color-scheme: dark;
+  color: #fff6eb;
+  background: #100e19;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+button, input { color: inherit; font: inherit; }
+button { cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+button:disabled { cursor: progress; }
+button:focus-visible, input:focus-visible { outline: 2px solid #fff6eb; outline-offset: 4px; }
+button, h1, h2, p, ol { margin: 0; }
+
+.app-shell { position: relative; isolation: isolate; width: 100%; height: 100dvh; overflow: hidden; }
+.flight-canvas { position: absolute; display: block; inset: 0; width: 100%; height: 100%; touch-action: none; }
+.flight-vignette { position: absolute; inset: 0; pointer-events: none; }
+.app-shell:is(.phase--playing, .phase--impact),
+.app-shell:is(.phase--playing, .phase--impact) .hud button { cursor: none; }
+.main-menu { user-select: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}

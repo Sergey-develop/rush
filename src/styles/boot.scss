@@ -1,0 +1,108 @@
+.boot-screen {
+  position:absolute; z-index:5; inset:0; isolation:isolate; overflow:hidden;
+  background:#0c1320; color:#f4f1fa; user-select:none;
+  font-family:'Exo 2','Segoe UI',sans-serif;
+}
+.boot-plate,.boot-portal-light,.boot-exposure,.boot-shade,.boot-core {
+  position:absolute; display:block; inset:0; pointer-events:none;
+}
+.boot-plate img,.boot-portal-light img { display:block; width:100%; height:100%; object-fit:cover; }
+.boot-plate { filter:saturate(.79) brightness(.93); }
+.boot-exposure {
+  background:linear-gradient(109deg,#091629b8 0%,#101b2fb3 44%,#0b172bbc 78%,#0c1726ae);
+  animation:station-exposure 1.45s cubic-bezier(.22,.51,.33,1) both;
+}
+@keyframes station-exposure { from { opacity:.78; } to { opacity:.14; } }
+
+/* Illuminate the existing emissive gate and its floor reflection in the captured frame. */
+.boot-portal-light {
+  opacity:0; mix-blend-mode:screen;
+  filter:saturate(.85) contrast(1.35) brightness(1.12);
+  mask-image:radial-gradient(ellipse 27% 43% at 71% 56%,#000 41%,#000b 66%,transparent);
+  animation:station-field-wake 1.34s .18s cubic-bezier(.31,.4,.56,1) both;
+}
+@keyframes station-field-wake { 0%,100% { opacity:0; } 36% { opacity:.65; } 65% { opacity:.26; } }
+.boot-shade {
+  background:
+    linear-gradient(90deg,#070c18b3 0%,#0a0d195e 24%,#090b1514 46%,transparent 64%),
+    linear-gradient(0deg,#070b14b8 0%,#070a1533 24%,transparent 42%,transparent 76%,#090d172e);
+}
+.boot-screen .game-logo {
+  animation:station-title 1s cubic-bezier(.18,.64,.28,1) both; will-change:opacity,translate;
+}
+@keyframes station-title { 0% { opacity:0; translate:0 10px; } 18% { opacity:.06; }
+  69% { opacity:.96; } 100% { opacity:1; translate:0 0; } }
+.boot-console {
+  position:absolute; left:6.2%; bottom:11%;
+  width:clamp(248px,25.8vw,465px);
+}
+.boot-listening { display:flex; align-items:center; gap:clamp(11px,1vw,17px);
+  animation:station-readout .58s .16s cubic-bezier(.18,.63,.28,1) both; }
+.boot-listening svg {
+  flex:none; width:clamp(26px,2.25vw,40px); height:clamp(26px,2.25vw,40px);
+  color:#e6e0ee; filter:drop-shadow(0 1px 2px #05070b) drop-shadow(0 0 4px #afa3cf33);
+}
+.boot-listening p {
+  color:#f1eaf6; font-size:clamp(12px,1.02vw,17px); line-height:1.25; font-weight:600;
+  letter-spacing:.15em; text-shadow:0 1px 5px #07101b,0 0 16px #040913;
+}
+.boot-load { margin-top:clamp(18px,2.95vh,32px);
+  animation:station-readout .57s .29s cubic-bezier(.18,.63,.28,1) both; }
+@keyframes station-readout { from { opacity:0; translate:0 5px; } to { opacity:1; translate:0 0; } }
+.boot-load__label { display:flex; align-items:baseline; justify-content:space-between; margin:0 1px 7px;
+  text-shadow:0 1px 4px #060911,0 0 11px #040915; }
+.boot-load__label span { color:#d4cad7; font-size:clamp(10px,.86vw,13px);
+  text-transform:uppercase; letter-spacing:.14em; font-weight:550; }
+.boot-load__label b { color:#faf2ff; font:400 clamp(16px,1.3vw,22px)/1 'Russo One','Exo 2',sans-serif;
+  font-variant-numeric:tabular-nums; }
+.boot-load__label small { margin-left:3px; color:#c6bace; font-size:.65em; }
+.boot-track { display:grid; grid-template-columns:repeat(32,minmax(0,1fr)); gap:2px; height:12px;
+  padding:2px 3px; background:linear-gradient(#080914e8,#171522e8);
+  border:1px solid #736977; border-bottom-color:#4a404f; border-top-color:#8c7e91;
+  transform:skewX(-12deg); box-shadow:0 1px 3px #000b,inset 0 1px 2px #000; }
+.boot-track i { background:linear-gradient(#433d4c,#302a35); border-top:1px solid #655b6c6e; }
+.boot-track i.is-lit { background:linear-gradient(#e2c5ee,#ad85bd); border-top-color:#e9d7ef; }
+.boot-track i.is-head { background:linear-gradient(#fff5ff,#edc8fe); box-shadow:0 0 5px #d5b7ef9c; }
+.boot-skip { position:absolute; right:max(27px,4.6%); bottom:max(20px,5.1%); display:flex;
+  align-items:center; gap:9px; min-height:40px; padding:0 9px; border:0; background:transparent;
+  color:#ded7df; font-size:12px; font-weight:550; letter-spacing:.05em;
+  text-shadow:0 1px 4px #050915,0 0 9px #040810; }
+.boot-skip:hover,.boot-skip:focus-visible { color:#fff; }
+.boot-skip:disabled { opacity:.63; cursor:default; }
+.boot-dismiss-leave-active { transition:opacity .64s cubic-bezier(.33,.05,.32,1); pointer-events:none; }
+.boot-dismiss-leave-active .boot-console,.boot-dismiss-leave-active .boot-skip { transition:opacity .24s ease; }
+.boot-dismiss-leave-to,.boot-dismiss-leave-to .boot-console,.boot-dismiss-leave-to .boot-skip { opacity:0; }
+
+.main-menu { --entry-time:.49s; --entry-step:53ms; }
+.main-menu.menu-return { --entry-time:.27s; --entry-step:23ms; }
+.main-menu.menu-return > .game-logo,.main-menu .menu-btn,.main-menu > .weekly-panel,.main-menu > .version {
+  animation:station-menu-in var(--entry-time) cubic-bezier(.18,.7,.25,1) backwards;
+}
+.main-menu .menu-btn--primary { animation-delay:var(--entry-step); }
+.main-menu .menu-btn--ranking { animation-delay:calc(var(--entry-step) * 2); }
+.main-menu .menu-btn--settings,.main-menu > .weekly-panel,.main-menu > .version { animation-delay:calc(var(--entry-step) * 3); }
+.main-menu > .weekly-panel { --entry-x:8px; }
+@keyframes station-menu-in { from { opacity:0; translate:var(--entry-x,-7px) 4px; } to { opacity:1; translate:0 0; } }
+
+@media (orientation:portrait) {
+  .boot-portal-light { mask-image:radial-gradient(ellipse 65% 29% at 50% 47%,#000 33%,#000b 63%,transparent); }
+  .boot-shade { background:linear-gradient(180deg,#080b1b9e 0%,#0b0b182b 25%,transparent 40%,transparent 58%,#070b1470 73%,#070b14cd); }
+  .boot-console { left:8%; bottom:max(12%,88px); width:min(76%,395px); }
+  .boot-load { margin-top:21px; }
+  .boot-skip { right:max(22px,5%); bottom:max(env(safe-area-inset-bottom),3%); }
+}
+@media (max-height:480px) and (orientation:landscape) {
+  .boot-console { left:6.2%; bottom:10%; width:clamp(205px,32vw,285px); }
+  .boot-listening { gap:8px; }
+  .boot-listening svg { width:22px; height:22px; }
+  .boot-listening p { font-size:11px; letter-spacing:.12em; }
+  .boot-load { margin-top:12px; }
+  .boot-track { height:10px; }
+  .boot-skip { right:22px; bottom:13px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .boot-exposure { opacity:.14; }
+  .boot-portal-light,.boot-exposure,.boot-screen .game-logo,.boot-listening,.boot-load,
+  .main-menu.menu-return > .game-logo,.main-menu .menu-btn,.main-menu > .weekly-panel,.main-menu > .version { animation:none; }
+  .boot-dismiss-leave-active,.boot-dismiss-leave-active .boot-console,.boot-dismiss-leave-active .boot-skip { transition:none; }
+}

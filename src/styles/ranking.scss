@@ -1,0 +1,27 @@
+.race-ranking .race-body {
+  display:flex; flex-direction:column; gap:clamp(3px,.7cqw,8px);
+}
+.race-period { display:flex; align-items:center; gap:clamp(10px,1.8cqw,21px); }
+.race-period button,.race-period > span {
+  border:0; border-bottom:2px solid transparent; border-radius:0; background:transparent;
+  color:#c7b9c5; padding:2px 0; font:560 clamp(11px,1.85cqw,18px)/1.2 'Exo 2','Segoe UI',sans-serif;
+}
+.race-period button[aria-pressed=true] { color:var(--race-cream); border-bottom-color:var(--race-pink); }
+.race-period > span { margin-left:auto; color:#baa9b8; }
+.race-ranks { list-style:none; padding:0; margin:0; flex:1; }
+.race-ranks li {
+  display:grid; grid-template-columns:1.8em minmax(0,1fr) 36%; align-items:center; gap:.45em;
+  min-height:33.333%; border-bottom:1px solid var(--race-line); padding:.18em 0;
+  color:var(--race-cream); text-transform:uppercase; font:400 clamp(16px,4.38cqw,49px)/1.12 'Russo One','Exo 2',sans-serif;
+}
+.race-ranks li:last-child { border-bottom:0; }
+.race-ranks strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:inherit; }
+.race-ranks b { height:1.32em; min-width:0; }
+.race-ranks b,.race-ranks li > span { font:inherit; font-variant-numeric:tabular-nums; }
+.race-empty { margin:auto 0; font:500 clamp(16px,2.6cqw,27px)/1.35 'Exo 2',sans-serif; }
+@media (max-width:760px) and (orientation:portrait) {
+  .race-period button { min-height:30px; }
+  .race-ranks li.race-rank--long { grid-template-columns:1.1em minmax(0,1fr); gap:2px .45em; padding:.4em 0; }
+  .race-rank--long b { grid-column:2; width:100%; }
+  .race-ranks li { min-height:clamp(56px,10dvh,82px); grid-template-columns:1.1em minmax(0,1fr) 39%; }
+}

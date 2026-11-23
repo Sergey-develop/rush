@@ -1,0 +1,39 @@
+.poster-menu .poster-guide {
+  position: absolute; left: var(--poster-left); bottom: max(3.8vh,env(safe-area-inset-bottom));
+  pointer-events: auto;
+}
+.poster-menu .poster-nav { bottom: max(var(--poster-bottom),calc(max(3.8vh,env(safe-area-inset-bottom)) + 39px)); }
+.briefing-body { display: grid; align-items: stretch; }
+.briefing-body:focus-visible { outline: 1px solid var(--race-muted); outline-offset: -1px; }
+.flight-briefing .race-head h2:focus { outline: none; }
+.briefing-list {
+  display: grid; grid-template-rows: repeat(3,auto); padding: 0; margin: 0; list-style: none;
+}
+.briefing-list li {
+  display: grid; align-items: center; grid-template-columns: auto minmax(0,1fr);
+  gap: clamp(12px,2.6cqw,29px); padding: clamp(8px,1.25cqw,14px) 0;
+}
+.briefing-list li + li { border-top: 1px solid #645762; }
+.briefing-list svg { width: clamp(25px,4.3cqw,45px); height: auto; color: #ff4e9d; stroke-width: 1.7; }
+.briefing-list h3 {
+  margin: 0; font: 400 clamp(15px,2.9cqw,30px)/1.12 'Russo One','Exo 2',sans-serif;
+  text-transform: uppercase; color: var(--race-cream);
+}
+.briefing-list p {
+  margin: .26em 0 0; color: #d7cad1; text-wrap: pretty;
+  font: 500 clamp(13px,2cqw,21px)/1.28 'Exo 2','Segoe UI',sans-serif;
+}
+.flight-briefing .race-primary { font-size: clamp(16px,3.65cqw,40px); }
+.flight-briefing .race-primary:disabled { cursor: progress; }
+@media (orientation: portrait) {
+  .poster-menu .poster-guide { bottom: max(2.2dvh,env(safe-area-inset-bottom)); }
+  .poster-menu .poster-nav { bottom: max(var(--poster-bottom),calc(max(2.2dvh,env(safe-area-inset-bottom)) + 33px)); }
+}
+@media (max-height: 480px) and (orientation: landscape) {
+  .poster-menu .poster-guide,.poster-menu .poster-records { bottom: max(6px,env(safe-area-inset-bottom)); }
+  .poster-menu .poster-guide,.poster-menu .poster-records-link { min-height: 26px; }
+  .poster-menu .poster-nav { bottom: max(var(--poster-bottom),calc(max(6px,env(safe-area-inset-bottom)) + 31px)); }
+}
+@media (max-height: 430px) and (orientation: landscape) {
+  .briefing-list li { padding-block: 5px; }
+}

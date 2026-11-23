@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.local
+.DS_Store
+*.local.mp3
+*.local.json
+src/assets/music/*.local.*
+/*.mp3
+visual-check/
