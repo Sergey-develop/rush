@@ -21,10 +21,7 @@ const previewFields: RenderBarrier[] = [
   {id:-1,kind:'center',x:0,z:-13,yaw:0,distance:13},
 ]
 
-import { createRival } from './Rival'
-
 export class World {
-  private readonly rival=createRival()
   private readonly scene = new THREE.Scene()
   private readonly camera = new THREE.PerspectiveCamera(64,1,.065,155)
   private readonly renderer: THREE.WebGLRenderer
@@ -77,7 +74,6 @@ export class World {
     this.scene.background = new THREE.Color(0x0e151e)
     this.scene.fog = new THREE.FogExp2(0x131c25,.014)
     this.scene.add(this.spill,this.cockpit,this.emergency,this.deckLamp)
-    this.scene.add(this.rival.craft)
     this.camera.rotation.order = 'YXZ'
     this.station = new Station(this.scene, prepared, textureManager)
     this.fields = new Fields(this.scene)
@@ -267,12 +263,6 @@ export class World {
     const coolGain = menuTime === undefined ? 1 : .93 + .105*Math.sin(menuTime*.35+1.7)
     if (menuTime !== undefined) this.station.setMenuLampLevels(warmGain,coolGain,menuTime)
     this.fields.update(barriers,segments,time+Math.min(.72,Math.max(0,impactAge ?? 0)),pulse,spectrum)
-    const {craft,pose}=this.rival
-    craft.visible=!!flight && flight.rivalPose(pose)
-    if(craft.visible) {
-      craft.position.set(pose.x,pose.y,pose.z)
-      craft.rotation.set(0,pose.yaw,pose.roll,'YXZ')
-    }
     if (flight) {
       const s = flight.state
       // Ease the eye back along the flight axis. The pilot and the obstacle checks
@@ -341,7 +331,6 @@ export class World {
   dispose() {
     this.viewport.disconnect()
     this.station.dispose()
-    this.rival.dispose()
     this.fields.dispose()
     this.boostFlow.dispose()
     this.air.dispose()

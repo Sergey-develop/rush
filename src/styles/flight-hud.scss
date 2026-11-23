@@ -67,8 +67,12 @@
   position: absolute; left: 50%; bottom: -1px; transform: translateX(-50%);
   width: 40%; height: 10.5%; opacity: .66; pointer-events: none;
 }
-.pursuit-board {position:absolute;top:15%;left:max(3.1vw,12px);display:grid;gap:4px;border-left:3px solid #53f4e9;padding:5px 9px;background:linear-gradient(90deg,#111321ea,transparent);font:600 clamp(10px,1vw,16px) 'Exo 2',sans-serif;color:#fff6eb}
-.pursuit-board strong {color:#92fff5;text-transform:uppercase}
+.echo-dark {position:absolute;inset:0;background:#02030a;opacity:.98;pointer-events:none}
+.echo-dark.echo-dim {opacity:.38}
+.echo-light-enter-active,.echo-light-leave-active {transition:opacity .14s ease-out}
+.echo-dark.echo-light-enter-from,.echo-dark.echo-light-leave-to {opacity:0}
+.echo-caption {position:absolute;top:18%;width:100%;text-align:center;color:#fff5e8;font:600 16px 'Exo 2',sans-serif}
+@media(prefers-reduced-motion:reduce){.echo-dark {opacity:.42}}
 .impulse-control {position:absolute;left:50%;bottom:max(4px,env(safe-area-inset-bottom));transform:translateX(-50%);min-height:44px;min-width:96px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;gap:4px;pointer-events:auto;color:#fff6eb}
 .impulse-control:disabled {pointer-events:none}
 .impulse-control:not(:disabled) {cursor:pointer!important;background:#301526df;border:1px solid #ff368f;border-radius:50% 50% 4px 4px}

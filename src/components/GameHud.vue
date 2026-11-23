@@ -45,10 +45,8 @@ onBeforeUnmount(() => cancelAnimationFrame(animation))
   <div class="hud">
     <FlightOptics v-if="frame.phase==='playing'"/>
     <template v-if="frame.phase==='playing'">
-      <div v-if="frame.pursuit" class="pursuit-board">
-        <strong>{{ frame.pursuit.result==='won'?'Обгон засчитан':frame.pursuit.result==='lost'?'Соперник финишировал':frame.pursuit.lead>0?'Вы впереди':'Обгоните соперника' }}</strong>
-        <span v-if="!frame.pursuit.result">{{ Math.round(Math.abs(frame.pursuit.lead)) }} м разрыва · Финиш через {{ Math.ceil(frame.pursuit.remaining) }} м</span>
-      </div>
+      <Transition name="echo-light"><div v-if="frame.echo" class="echo-dark" :class="{'echo-dim':frame.visualEcho}" aria-hidden="true"/></Transition>
+      <small v-if="frame.echo && frame.visualEcho" class="echo-caption">{{ {top:'Проём сверху',center:'Проём по центру',bottom:'Проём снизу'}[frame.echo] }}</small>
       <div v-if="frame.grazes || frame.breaks" :key="(frame.grazes??0)+'-'+(frame.breaks??0)" class="field-wake" aria-hidden="true"/>
       <button class="impulse-control" :disabled="frame.charge!==3 || frame.armed" @click="$emit('impulse')" aria-label="Активировать импульс">
         <span v-for="i in 3" :key="i" :class="{charged:(frame.charge??0)>=i}"></span>
