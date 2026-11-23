@@ -259,7 +259,7 @@ onBeforeUnmount(() => {
     </template>
     <template v-else-if="frame.phase!=='over'">
       <div class="flight-vignette" aria-hidden="true"/>
-      <GameHud :inert="frame.phase==='impact'" :frame="frame" @pause="engine?.pause()" @impulse="engine?.armImpulse()"/>
+      <GameHud :inert="frame.phase==='impact'" :frame="frame" @pause="engine?.pause()"/>
       <div v-if="frame.phase==='countdown'" class="countdown">
         <div class="countdown-ring" role="timer" aria-live="polite">
           <HudArtwork design="countdown" :numeral="frame.countdown"/>

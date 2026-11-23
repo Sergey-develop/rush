@@ -1,6 +1,6 @@
 import {
   ACCELERATION_TIME, MAX_BOOST_SPEED_GAIN, MAX_HEIGHT, PLAYER_RADIUS, SPEED, START_SPEED, GAP_WIDTH, gapBounds, isTurn,
-  bonusGap, type BarrierKind, type FlightInput, type FlightOptions, type FlightState,
+  type BarrierKind, type FlightInput, type FlightOptions, type FlightState,
   type RouteEvent,
 } from '../types'
 import { normalSpeedAt, Track } from './Track'
@@ -32,7 +32,6 @@ export function clearsBarrier(kind: BarrierKind, x: number, y: number) {
 
 function initialState(): FlightState {
   return {
-    charge:0, armed:false, grazes:0, breaks:0,
     x: 0, y: 0, z: 0, yaw: 0, roll: 0, distance: 0, score: 0, combo: 0, passed: 0,
     speed: START_SPEED, boosting: false, boostLevel: 0,
     next: null, dead: false, reason: null,
@@ -142,15 +141,11 @@ export class Flight {
     this.boostPoints += motion.bonus
   }
 
-  armImpulse() {
-    if (this.state.charge===3 && !this.state.dead) this.state.armed=true
-  }
-
-  private pass(event: RouteEvent, multiplier=1) {
+  private pass(event: RouteEvent) {
     this.lastEvent = event.id
     this.state.passed++
     this.state.combo++
-    this.obstaclePoints += multiplier * 100 * Math.min(8, this.state.combo) + (isTurn(event.kind) ? 100 : 0)
+    this.obstaclePoints += 100 * Math.min(8, this.state.combo) + (isTurn(event.kind) ? 100 : 0)
   }
 
   /** seconds is absolute transport time since the start of this run, excluding pauses. */
@@ -172,27 +167,11 @@ export class Flight {
       const hitTime = this.travelTime(remaining, span, held)
       this.move(hitTime, this.motion(hitTime, held), input)
       this.state.distance = event.distance
-      if (isTurn(event.kind)) {
+      if (isTurn(event.kind) || clearsBarrier(event.kind, 0, this.state.y)) {
         this.pass(event)
       } else {
-        const extra=bonusGap(event), y=this.state.y
-        const risky=extra && y-PLAYER_RADIUS>=extra.bottom && y+PLAYER_RADIUS<=extra.top
-        if (risky || clearsBarrier(event.kind,0,y)) {
-          const gap=risky ? extra! : gapBounds(event.kind)
-          if (Math.min(y-gap.bottom,gap.top-y)-PLAYER_RADIUS <= .24) {
-            this.state.grazes++
-            this.state.charge=Math.min(3,this.state.charge+1)
-          }
-          this.pass(event,risky && this.state.boostLevel>.5 ? 2 : 1)
-        } else if (this.state.armed) {
-          this.state.armed=false
-          this.state.charge=0
-          this.state.breaks++
-          this.pass(event)
-        } else {
-          this.state.dead = true
-          this.state.reason = 'barrier'
-        }
+        this.state.dead = true
+        this.state.reason = 'barrier'
       }
     }
     this.track.ensure(this.state.distance)

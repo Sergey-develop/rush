@@ -1,11 +1,5 @@
 export type Phase = 'menu' | 'countdown' | 'playing' | 'paused' | 'impact' | 'over'
 export interface GameFrame {
-  echo?: 'top'|'center'|'bottom'
-  visualEcho?:boolean
-  charge?:number
-  armed?:boolean
-  grazes?:number
-  breaks?:number
   phase: Phase
   countdown: number
   score: number

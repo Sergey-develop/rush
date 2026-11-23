@@ -226,18 +226,6 @@ export class Music {
   pass(combo: number) {
     if (this.context) this.blip(this.context.currentTime, 710 + Math.min(combo, 12) * 28, 0.105, 0.036, 1220)
   }
-  echoCue(lane:'top'|'center'|'bottom',beat:number) {
-    if (!this.context) return
-    const pitch={bottom:247,center:494,top:988}[lane]
-    const now=this.context.currentTime
-    for(const at of [now,now+beat]) this.blip(at,pitch,.22,.15,pitch)
-  }
-  fieldContact(breach:boolean) {
-    if (!this.context) return
-    const time=this.context.currentTime
-    this.blip(time,breach?190:1780,breach?.21:.035,.075,breach?46:380)
-    this.blip(time+.024,breach?420:2330,.045,.046,260)
-  }
   private stopNotes() {
     for (const note of this.notes) { note.stop(); note.disconnect() }
     this.notes.clear()

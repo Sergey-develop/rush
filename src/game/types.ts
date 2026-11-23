@@ -49,16 +49,6 @@ export interface RenderBarrier extends RouteEvent {
   kind: BarrierKind
 }
 
-// The opening stretch introduces a second line after the first few obstacles.
-export function bonusGap(event: RouteEvent) {
-  if (event.id < 5 || event.distance > 610 || isTurn(event.kind)) return null
-  return bonusBounds(event.kind)
-}
-export function bonusBounds(kind:BarrierKind) {
-  const center = kind === 'top' ? -1.85 : 1.85
-  return {bottom:center-.51, top:center+.51}
-}
-
 export interface BeatEvent {
   beat: number
   kind: ObstacleKind
@@ -77,10 +67,6 @@ export interface FlightInput {
 }
 
 export interface FlightState {
-  charge: number
-  armed: boolean
-  grazes: number
-  breaks: number
   x: number
   y: number
   z: number

@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { GAP_WIDTH, gapBounds, bonusGap, bonusBounds } from '../types'
+import { GAP_WIDTH, gapBounds } from '../types'
 import type { RenderBarrier, RenderSegment } from '../types'
 import { fieldFragment, fieldVertex } from '../shaders/field'
 import { reflectedField } from '../shaders/reflection'
@@ -42,7 +42,7 @@ function ribbon(points: Point[], width: number, closed = true) {
   return geo
 }
 
-function buildField(kind: Kind, double=false) {
+function buildField(kind: Kind) {
   const group = new THREE.Group()
   const {bottom,top} = gapBounds(kind)
   const half = GAP_WIDTH / 2
@@ -58,15 +58,6 @@ function buildField(kind: Kind, double=false) {
     closed = false
   }
   const profile = new THREE.Shape(pathOf(rim))
-  const extra=double ? bonusBounds(kind) : null
-  if (extra) {
-    const lip=bevelRect(1.20,extra.bottom,extra.top)
-    profile.holes.push(new THREE.Path(pathOf(lip)))
-    const pink=new THREE.MeshBasicMaterial({color:0xff258b,side:THREE.DoubleSide,toneMapped:false})
-    const edge=new THREE.Mesh(ribbon(lip,.075),pink)
-    edge.renderOrder=5
-    group.add(edge)
-  }
   if (kind === 'center') profile.holes.push(new THREE.Path(pathOf(inner)))
   const surface = new THREE.ShaderMaterial({
     uniforms: {uTime:{value:0},uPulse:{value:0},uMids:{value:0},uHighs:{value:0},uAttack:{value:0},uMusicEnabled:{value:0},uOpening:{value:new THREE.Vector2(bottom,top)}},
@@ -99,7 +90,6 @@ function buildField(kind: Kind, double=false) {
   for (let i=0;i<200;i++) {
     const x=(rand()-.5)*9.15, y=(rand()-.5)*5.48
     if (Math.abs(x) < half && y > bottom && y < top) continue
-    if (extra && Math.abs(x)<1.20 && y>extra.bottom && y<extra.top) continue
     coords.push(x,y,rand()*.36+.03)
   }
   const points = new THREE.BufferGeometry()
@@ -121,7 +111,6 @@ function buildField(kind: Kind, double=false) {
 export class Fields {
   private layer = new THREE.Group()
   private proto = {top:buildField('top'),center:buildField('center'),bottom:buildField('bottom')}
-  private doubles = {top:buildField('top',true),center:buildField('center',true),bottom:buildField('bottom',true)}
   private arrows = {left:makeTurnSignal('left'),right:makeTurnSignal('right')}
   private pool = new Map<string,THREE.Group[]>()
   private used = new Map<string,number>()
@@ -139,7 +128,7 @@ export class Fields {
   }
   update(barriers: readonly RenderBarrier[], segments: readonly RenderSegment[], time: number,pulse: number,light?:MusicLight) {
     this.used.clear()
-    for (const source of [...Object.values(this.proto),...Object.values(this.doubles)]) {
+    for (const source of Object.values(this.proto)) {
       source.surface.uniforms.uTime!.value = time
       source.surface.uniforms.uPulse!.value = light ? light.beatFlash : pulse
       source.surface.uniforms.uMusicEnabled!.value = light ? 1 : 0
@@ -156,10 +145,7 @@ export class Fields {
         }
       }
     }
-    for (const b of barriers) {
-      const double=!!bonusGap(b)
-      this.place((double?'double-':'')+b.kind,(double?this.doubles:this.proto)[b.kind].group,b.x,b.z,b.yaw)
-    }
+    for (const b of barriers) this.place(b.kind,this.proto[b.kind].group,b.x,b.z,b.yaw)
     for (const segment of segments) {
       if (segment.kind==='straight') continue
       const signDistance = segment.length - .68
@@ -171,7 +157,7 @@ export class Fields {
     this.layer.removeFromParent()
     const materials = new Set<THREE.Material>()
     const geometry = new Set<THREE.BufferGeometry>()
-    for (const root of [...Object.values(this.proto),...Object.values(this.doubles)].map(p=>p.group).concat(Object.values(this.arrows))) {
+    for (const root of [...Object.values(this.proto).map(p=>p.group),...Object.values(this.arrows)]) {
       root.traverse(child=>{
         if (child instanceof THREE.Mesh || child instanceof THREE.Points) {
           geometry.add(child.geometry)
