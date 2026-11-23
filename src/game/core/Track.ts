@@ -73,6 +73,7 @@ export class Track {
   private beat = 0
   private lastDistance = 0
   private barriersSinceTurn = 0
+  private seriesIndex = 0
   private cursorDistance = -12
   private x = 0
   private z = 12
@@ -99,17 +100,22 @@ export class Track {
       return authored
     }
     const minBeats = Math.ceil(MIN_REACTION_SECONDS * this.bpm / 60)
-    const targetSeconds = this.random() < 0.8 ? 1.42 : 1.70
+    const targetSeconds = this.random() < 0.9 ? 1.42 : 1.70
     const spacing = Math.max(minBeats, Math.round(targetSeconds*this.bpm/60))
     let kind: ObstacleKind
-    if (this.barriersSinceTurn > 0 || (this.eventId > 0 && this.random() < 0.16)) {
+    const count=[2,3,1][this.seriesIndex%3]!
+    if (this.barriersSinceTurn >= count) {
+      this.seriesIndex++
       if (this.heading !== 0) kind = this.heading > 0 ? 'right' : 'left'
       else kind = this.random() < 0.5 ? 'left' : 'right'
     } else {
       const pick = this.random()
-      kind = pick < 0.34 ? 'bottom' : pick < 0.67 ? 'top' : 'center'
+      const last=this.events.at(-1)?.kind
+      if(last==='top' || last==='bottom') kind='center'
+      else kind = pick < .47 ? 'bottom' : pick < .94 || last==='center' ? 'top' : 'center'
     }
-    return { beat: this.beat + spacing, kind }
+    const rest=isTurn(kind) && this.barriersSinceTurn===3 ? 2 : 0
+    return { beat: this.beat + spacing + rest, kind }
   }
 
   private get yaw() { return this.heading * Math.PI / 2 }

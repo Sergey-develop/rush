@@ -35,7 +35,7 @@ test('equal seeds reproduce the track while alternate seeds change it', () => {
   }
 })
 
-test('the default route turns on beat 8 and keeps every subsequent straight below 84 m', () => {
+test('the default route turns on beat 8 and alternates bounded series with a recovery after triples', () => {
   const file = new URL('../src/assets/music/phase-line.json', import.meta.url)
   const chart = JSON.parse(readFileSync(file, 'utf8')) as { bpm: number; events: BeatEvent[] }
   const metresPerBeat = SPEED * 60 / chart.bpm
@@ -44,15 +44,20 @@ test('the default route turns on beat 8 and keeps every subsequent straight belo
   near(corners[0]!.distance, normalDistanceAt(8*60/chart.bpm))
   assert.ok(corners[0]!.distance < 67)
   let previous = 0
-  let consecutivePairs = 0
+  const groups:number[]=[]
   for (const corner of corners) {
     const leg = corner.distance - previous
-    assert.ok(leg <= 10 * metresPerBeat + 1e-6)
+    assert.ok(leg <= 22 * metresPerBeat + 1e-6)
     assert.ok(leg >= 4 * START_SPEED * 60/chart.bpm - 1e-6)
-    if (normalTimeAtDistance(corner.distance)-normalTimeAtDistance(previous) < 6*60/chart.bpm) consecutivePairs++
+    const fields=events.filter(e=>e.distance>previous && e.distance<corner.distance)
+    if(corner.id>=chart.events.length) groups.push(fields.length)
+    if(fields.length===3) {
+      const recovery=normalTimeAtDistance(corner.distance)-normalTimeAtDistance(fields[2]!.distance)
+      assert.ok(recovery>=6*60/chart.bpm-1e-6)
+    }
     previous = corner.distance
   }
-  assert.ok(consecutivePairs > 0 && consecutivePairs < corners.length / 2)
+  assert.deepEqual(groups.slice(0,6),[2,3,1,2,3,1])
 })
 
 test('every module meets the next at the same position, heading and path distance', () => {

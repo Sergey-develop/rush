@@ -293,10 +293,11 @@ export class World {
       }
       const warmFlash=spectrum.warmFlash??beatFlash, coolFlash=spectrum.coolFlash??beatFlash
       this.emergency.color.setRGB(1,.17+.12*bass,.042)
-      this.emergency.intensity=this.hasWarmFixture ? warmFlash*(43+32*bass) : 0
+      const kick=warmFlash*(1+1.65*warmFlash)
+      this.emergency.intensity=this.hasWarmFixture ? kick*(43+32*bass) : 0
       this.cockpit.color.setRGB(.10,.33+.14*highs,1)
       this.cockpit.intensity=this.hasCoolFixture ? coolFlash*(25+23*highs) : 0
-      this.deckLamp.intensity=this.hasDeckFixture ? warmFlash*(9+8*bass) : 0
+      this.deckLamp.intensity=this.hasDeckFixture ? kick*(14+10*bass) : 0
       this.spill.color.setRGB(.48+.22*mids,.11+.045*highs,.91)
       this.spill.intensity=next ? 4.2+1.5*mids+4.8*beatFlash : 0
     } else {

@@ -308,7 +308,7 @@ export class Station {
     for (let bank=0;bank<3;bank++) {
       const warmWeight=bank===0 ? 1 : bank===1 ? .52 : .75
       const coolWeight=bank===1 ? 1 : bank===2 ? .56 : .77
-      const warmDrive=light ? .009+warmFlash*warmFlash*(1.78-.78*warmFlash)*warmWeight : .90
+      const warmDrive=light ? .009+warmFlash*(.42+2.3*warmFlash)*warmWeight : .90
       const coolDrive=light ? .009+coolFlash*coolFlash*(1.78-.78*coolFlash)*coolWeight : .90
       this.lampBanks.amber[bank].color.setRGB(3.62,light ? 1.09 : 1.09+Math.sin(time*1.65)*.018,.24)
         .multiplyScalar(warmDrive*warm)

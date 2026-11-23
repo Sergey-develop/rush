@@ -129,8 +129,11 @@ export class BeatAccents {
       const strength=this.cues[offset+1]
       const hold=.017+.016*strength
       const value=strength*Math.min(1,age/.004)*Math.exp(-Math.max(0,age-hold)/(.023+.013*strength))
+      // Let the strongest low-frequency strikes hang on the metal after the attack.
+      const low=strength*this.cues[offset+2]
+      const amber=low*Math.min(1,age/.004)*Math.exp(-Math.max(0,age-hold-.019*low)/(.023+.033*low))
+      warm=Math.max(warm,amber)
       if(value<.012) continue
-      warm=Math.max(warm,value*this.cues[offset+2])
       cool=Math.max(cool,value*this.cues[offset+3])
       flash=Math.max(flash,value*(.73+.27*this.cues[offset+2]))
     }

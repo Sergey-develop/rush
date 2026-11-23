@@ -8,8 +8,8 @@
     { "beat": 9, "kind": "top" },
     { "beat": 12, "kind": "right" },
     { "beat": 15, "kind": "bottom" },
-    { "beat": 18, "kind": "right" },
-    { "beat": 21, "kind": "center" },
+    { "beat": 18, "kind": "center" },
+    { "beat": 21, "kind": "top" },
     { "beat": 24, "kind": "left" }
   ]
 }
