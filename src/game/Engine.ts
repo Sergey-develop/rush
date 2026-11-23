@@ -47,6 +47,9 @@ export class Engine {
       })
     document.addEventListener('visibilitychange',()=>{ if (document.hidden) this.pause() },{signal:this.observe.signal})
     window.addEventListener('blur',()=>this.pause(),{signal:this.observe.signal})
+    canvas.addEventListener('contextmenu',event=>{
+      if(this.phase==='playing') {event.preventDefault();this.armImpulse()}
+    },{signal:this.observe.signal})
     this.publish()
     if (import.meta.env.DEV && new URLSearchParams(location.search).has('qa')) {
       Object.defineProperty(window,'corridorStatus',{configurable:true,value:()=>({
@@ -103,6 +106,7 @@ export class Engine {
     this.onFrame({
       phase:this.phase,countdown: Math.max(1,Math.min(3,Math.ceil(-this.simulationTime))),
       score:s.score,combo:s.combo,distance:s.distance,bpm:this.music.bpm,
+      charge:s.charge,armed:s.armed,grazes:s.grazes,breaks:s.breaks,
       pulse:this.lastLight ? Math.min(1,.74*this.lastLight.beatFlash+.30*this.lastLight.transient+.18*this.lastLight.highs) : this.lastPulse,
       altitude:s.y,reason:this.reason,speed:s.speed,boostLevel:s.boostLevel,track:this.music.title,
       hint:s.next && s.next.distance <= TURN_WARNING_DISTANCE ? s.next.kind : null,
@@ -142,6 +146,9 @@ export class Engine {
     this.input.clear()
     void this.music.suspend()
     this.publish()
+  }
+  armImpulse() {
+    if (this.phase==='playing') { this.flight.armImpulse(); this.publish() }
   }
   async resume() {
     if (this.phase!=='paused' || this.resumePending) return
@@ -184,6 +191,7 @@ export class Engine {
     if (this.simulationTime<0) { this.lastPulse=0;return }
     if (this.phase==='countdown') this.phase='playing'
     const passed=this.flight.state.passed
+    const {grazes,breaks}=this.flight.state
     this.flight.advance(this.simulationTime,this.input.read())
     this.lastLight=this.music.sampleLight(this.simulationTime)
     this.lastPulse=this.lastLight.beatFlash
@@ -197,6 +205,8 @@ export class Engine {
       } else this.music.stop()
       this.input.clear()
       this.publish()
+    } else if (this.flight.state.breaks>breaks || this.flight.state.grazes>grazes) {
+      this.music.fieldContact(this.flight.state.breaks>breaks)
     } else if (this.flight.state.passed>passed) this.music.pass(this.flight.state.combo)
   }
 

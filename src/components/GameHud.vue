@@ -5,7 +5,7 @@ import type { GameFrame } from '../game/contracts'
 import FlightOptics from './FlightOptics.vue'
 import ResultDigits from './ResultDigits.vue'
 const props = defineProps<{ frame: GameFrame }>()
-defineEmits<{ pause: [] }>()
+defineEmits<{ pause: []; impulse: [] }>()
 const hudScore = ref(props.frame.score)
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 let animation = 0
@@ -44,6 +44,13 @@ onBeforeUnmount(() => cancelAnimationFrame(animation))
 <template>
   <div class="hud">
     <FlightOptics v-if="frame.phase==='playing'"/>
+    <template v-if="frame.phase==='playing'">
+      <div v-if="frame.grazes || frame.breaks" :key="(frame.grazes??0)+'-'+(frame.breaks??0)" class="field-wake" aria-hidden="true"/>
+      <button class="impulse-control" :disabled="frame.charge!==3 || frame.armed" @click="$emit('impulse')" aria-label="Активировать импульс">
+        <span v-for="i in 3" :key="i" :class="{charged:(frame.charge??0)>=i}"></span>
+        <b v-if="frame.charge===3">{{ frame.armed?'Пробой готов':'Импульс' }}</b>
+      </button>
+    </template>
     <div class="hud-score">
       <span class="hud-label">Счёт</span>
       <i class="hud-strike" aria-hidden="true"/>

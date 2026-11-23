@@ -67,6 +67,13 @@
   position: absolute; left: 50%; bottom: -1px; transform: translateX(-50%);
   width: 40%; height: 10.5%; opacity: .66; pointer-events: none;
 }
+.impulse-control {position:absolute;left:50%;bottom:max(4px,env(safe-area-inset-bottom));transform:translateX(-50%);min-height:44px;min-width:96px;border:0;background:transparent;display:flex;align-items:center;justify-content:center;gap:4px;pointer-events:auto;color:#fff6eb}
+.impulse-control:disabled {pointer-events:none}
+.impulse-control:not(:disabled) {cursor:pointer!important;background:#301526df;border:1px solid #ff368f;border-radius:50% 50% 4px 4px}
+.impulse-control span {width:15px;height:3px;background:#79788d}.impulse-control span.charged {background:#ff499f;box-shadow:0 0 8px #ff178c}
+.impulse-control b {position:absolute;bottom:1px;font:700 10px 'Exo 2',sans-serif}
+.field-wake {position:absolute;inset:0;pointer-events:none;opacity:0;animation:field-wake .45s ease-out;background:radial-gradient(ellipse at 50% 105%,#ff3c9caa,transparent 28%),linear-gradient(107deg,#aa52ff80,transparent 14%,transparent 86%,#ff398880)}
+@keyframes field-wake {from{opacity:.9}to{opacity:0}}
 @media (orientation: portrait) {
   .cockpit-arc { width: 55%; height: 3.7%; opacity: .5; }
 }

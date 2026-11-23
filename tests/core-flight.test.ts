@@ -5,6 +5,27 @@ import { MIN_REACTION_SECONDS, normalDistanceAt, normalSpeedAt, normalTimeAtDist
 import { DEFAULT_BPM, GAP_WIDTH, MAX_HEIGHT, PLAYER_RADIUS, SPEED, START_SPEED, MAX_BOOST_SPEED_GAIN, gapBounds, isTurn, type BarrierKind, type BeatEvent } from '../src/game/types'
 
 const neutral = { vertical: 0 }
+test('three grazes arm one breach; a second collision ends the run',()=>{
+  const flight=new Flight({beatmap:Array.from({length:6},(_,i)=>({beat:8*(i+1),kind:'center'}))})
+  for(let i=1;i<=3;i++) flight.advance(beatTime(8*i)+.01,{vertical:0,targetY:.35})
+  assert.equal(flight.state.charge,3)
+  flight.armImpulse()
+  flight.advance(beatTime(32)+.01,{vertical:0,targetY:2})
+  assert.equal(flight.state.breaks,1)
+  assert.equal(flight.state.charge,0)
+  flight.advance(beatTime(40)+.01,{vertical:0,targetY:2})
+  assert.ok(flight.state.dead)
+})
+test('boosting through the second opening doubles only the gate award',()=>{
+  function run(risky:boolean) {
+    const flight=new Flight({beatmap:Array.from({length:7},(_,i)=>({beat:8*(i+1),kind:'center'}))})
+    for(let i=1;i<2000 && flight.state.passed<6 && !flight.state.dead;i++)
+      flight.advance(i/60,{vertical:0,boost:true,targetY:risky && flight.state.passed===5?1.85:0})
+    assert.equal(flight.state.passed,6)
+    return flight.state.score
+  }
+  assert.equal(run(true)-run(false),600)
+})
 const beatTime = (beat: number) => beat * 60 / DEFAULT_BPM
 function near(actual: number, expected: number, tolerance = 1e-6) {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} differs from ${expected}`)
