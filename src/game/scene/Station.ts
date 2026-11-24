@@ -12,7 +12,7 @@ export type LampLevels = Required<Pick<MusicLight,'kick' | 'snare' | 'hat' | 'to
 
 /** Convert the measured sound amplitude to linear light power before HDR tone mapping. */
 function lampDrive(envelope: number) {
-  return 1.12 * envelope * envelope
+  return 1.65 * envelope * envelope
 }
 
 const halfPi = Math.PI / 2
