@@ -238,3 +238,57 @@ test('full boost allows time to reach consecutive opposite apertures in the shor
   }
   assert.equal(previousPass,beatmap.length)
 })
+
+test('a shield is optional, absorbs one missed gate and resets with the run', () => {
+  const flight = new Flight({bpm: 120, beatmap: [
+    {beat: 40, kind: 'left'}, {beat: 44, kind: 'bottom'}, {beat: 48, kind: 'bottom'},
+  ]})
+  flight.advance(20.1, {vertical: 0, targetY: 1.25})
+  assert.equal(flight.state.shield, true)
+  assert.ok(flight.effectTimes.shieldArmed > 0 && flight.effectTimes.shieldArmed < 20.1)
+  assert.equal(flight.effectTimes.shieldHit,-Infinity)
+  flight.advance(22.1, neutral)
+  near(flight.effectTimes.shieldHit,22)
+  assert.equal(flight.state.shield, false)
+  assert.equal(flight.state.dead, false)
+  assert.equal(flight.state.combo, 0)
+  flight.advance(24.1, neutral)
+  assert.equal(flight.state.dead, true)
+  flight.reset()
+  assert.equal(flight.effectTimes.shieldArmed,-Infinity)
+  assert.equal(flight.effectTimes.shieldHit,-Infinity)
+  flight.advance(22.1, neutral)
+  assert.equal(flight.effectTimes.shieldArmed,-Infinity)
+  assert.equal(flight.state.dead, true)
+})
+
+test('sprint and collected thrust stack, expire separately and integrate across skipped frames', () => {
+  const beatmap: BeatEvent[] = [
+    {beat: 40, kind: 'left'}, {beat: 84, kind: 'right'}, {beat: 124, kind: 'left'},
+  ]
+  const coarse = new Flight({bpm: 120, beatmap})
+  const fine = new Flight({bpm: 120, beatmap})
+  let previous = 0
+  for (const [time, sprinting] of [[42,false],[43,true],[44,false],[48,true]] as const) {
+    const input = {vertical: 0, targetY: -1.25, boost: sprinting}
+    coarse.advance(time,input)
+    for (let i=1;i<=200;i++) fine.advance(previous+(time-previous)*i/200,input)
+    near(coarse.state.distance,fine.state.distance)
+    near(coarse.state.speed,fine.state.speed)
+    near(coarse.state.boostSeconds,fine.state.boostSeconds)
+    near(coarse.effectTimes.boostIgnited,fine.effectTimes.boostIgnited)
+    assert.equal(coarse.state.score,fine.state.score)
+    assert.equal(coarse.state.sprinting,sprinting)
+    assert.equal(coarse.state.boostSeconds > 0,time < 48)
+    if (time === 43) {
+      assert.ok(coarse.state.boostLevel > 1.9)
+      assert.ok(coarse.state.speed > normalSpeedAt(time) * 1.65)
+    } else {
+      assert.ok(coarse.state.boostLevel > .5 && coarse.state.boostLevel < 1.1)
+    }
+    previous=time
+  }
+  coarse.reset()
+  assert.equal(coarse.state.boostSeconds,0)
+  assert.equal(coarse.state.boostLevel,0)
+})

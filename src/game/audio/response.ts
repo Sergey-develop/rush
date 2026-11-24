@@ -6,6 +6,10 @@ export interface MusicLight {
   energy: number
   beatIndex: number
   beatFlash: number
+  kick?: number
+  snare?: number
+  hat?: number
+  tone?: number
   warmFlash?: number
   coolFlash?: number
 }

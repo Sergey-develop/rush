@@ -130,3 +130,21 @@ test('authored beatmaps respect BPM, validate playability and continue procedura
   assert.ok(rest.segments.length < 10)
   assert.equal(rest.events.length, 0)
 })
+
+test('pickups alternate with at least 420 metres between them across seeds and route streaming', () => {
+  for (const seed of [13, 10073]) {
+    const track = new Track({seed})
+    let previous = 0, count = 0
+    for (let distance = 0; distance < 10_000; distance += 28) {
+      track.ensure(distance)
+      for (const pickup of track.pickups) {
+        if (pickup.distance <= previous) continue
+        assert.ok(pickup.distance - previous >= (count ? 420 : 240))
+        assert.equal(pickup.kind,count % 2 ? 'boost' : 'shield')
+        previous = pickup.distance
+        count++
+      }
+    }
+    assert.ok(count >= 20 && count <= 24)
+  }
+})

@@ -3,7 +3,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { Pickups } from './Pickups'
 import { Fields } from './Fields'
+import { ModuleEffects } from './ModuleEffects'
 import { BoostFlow } from './BoostFlow'
 import { Station, type StationSurfaces } from './Station'
 import { CorridorAir } from './station/CorridorAir'
@@ -26,7 +28,9 @@ export class World {
   private readonly camera = new THREE.PerspectiveCamera(64,1,.065,155)
   private readonly renderer: THREE.WebGLRenderer
   private readonly station: Station
+  private readonly pickups: Pickups
   private readonly fields: Fields
+  private readonly moduleEffects = new ModuleEffects(this.scene)
   private readonly boostFlow: BoostFlow
   private boostOptics = 0
   private boostArmed = false
@@ -36,6 +40,7 @@ export class World {
   private readonly spill = new THREE.PointLight(0xd05eff,44,17,2)
   private readonly cockpit = new THREE.PointLight(0xadaaff,22,16,2)
   private readonly emergency = new THREE.PointLight(0xff7038,0,13,2)
+  private readonly snareLamp = new THREE.PointLight(0xffc0ad,0,12,2)
   private readonly deckLamp = new THREE.PointLight(0xff8d42,0,7.5,2)
   private readonly air: CorridorAir
   private readonly outputPass = new OutputPass()
@@ -45,13 +50,16 @@ export class World {
   private width = 0
   private height = 0
   private scale = 1
-  private slowFrames = 0
+  private slowTime = 0
+  private readonly warmed = new Set<'high'|'low'>()
+  private readonly previousShadowPosition = new THREE.Vector3()
   private lampMode?: 'music'|'steady'
   private readonly lampAnchor = new THREE.Vector3()
   private lampYaw = 0
   private hasWarmFixture=false
   private hasCoolFixture=false
   private hasDeckFixture=false
+  private hasSnareFixture=false
   private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
   private readonly referenceMenu = new URLSearchParams(location.search).get('view') === 'reference'
   private menuEnteredAt?: number
@@ -73,9 +81,10 @@ export class World {
     this.emergency.shadow.normalBias=.032
     this.scene.background = new THREE.Color(0x0e151e)
     this.scene.fog = new THREE.FogExp2(0x131c25,.014)
-    this.scene.add(this.spill,this.cockpit,this.emergency,this.deckLamp)
+    this.scene.add(this.spill,this.cockpit,this.emergency,this.deckLamp,this.snareLamp)
     this.camera.rotation.order = 'YXZ'
     this.station = new Station(this.scene, prepared, textureManager)
+    this.pickups = new Pickups(this.scene, prepared?.hardware)
     this.fields = new Fields(this.scene)
     this.boostFlow = new BoostFlow(this.scene)
     const floatTargets=this.renderer.extensions.has('EXT_color_buffer_float')
@@ -84,7 +93,7 @@ export class World {
       depthTexture:new THREE.DepthTexture(1,1,THREE.UnsignedIntType)})
     this.composer = new EffectComposer(this.renderer,hdr)
     this.composer.addPass(new RenderPass(this.scene,this.camera))
-    this.air=new CorridorAir(this.camera,[this.emergency,this.cockpit,this.deckLamp,this.spill],targetType)
+    this.air=new CorridorAir(this.camera,[this.emergency,this.cockpit,this.deckLamp,this.spill,this.snareLamp],targetType)
     this.composer.addPass(this.air)
     this.bloom = new UnrealBloomPass(new THREE.Vector2(480,270),.35,.37,.90)
     this.bloom.enabled=floatTargets
@@ -134,7 +143,9 @@ export class World {
       this.boostOptics = 0
     } else {
       if (state.boosting) this.boostArmed = true
-      const target = this.boostArmed ? state.boostLevel * (.84+.16*speed) : 0
+      // The second throttle stage widens peripheral vision a little further.
+      const level = Math.min(1,state.boostLevel) + .32 * Math.max(0,state.boostLevel-1)
+      const target = this.boostArmed ? level * (.84+.16*speed) : 0
       this.boostOptics = THREE.MathUtils.damp(this.boostOptics,target,16,dt)
       if (this.boostOptics < .001 && !state.boosting) this.boostOptics = 0
     }
@@ -155,25 +166,29 @@ export class World {
     this.air.setQuality(quality==='low')
     this.renderer.shadowMap.needsUpdate=true
     this.scale = 1
-    this.slowFrames = 0
+    this.slowTime = 0
     this.resize()
   }
   monitorFrame(delta: number) {
-    // Drop render resolution only after sustained slow frames; simulation always follows audio time.
-    if (delta > .030 && delta < .8) this.slowFrames++
-    else if (delta < .023) this.slowFrames = Math.max(0,this.slowFrames-2)
-    if (this.slowFrames > 85 && this.scale>.66) {
+    // Count sustained time over budget. A single stall contributes at most 250 ms.
+    if (delta > .030) this.slowTime += Math.min(.25,delta)
+    else if (delta < .023) this.slowTime = Math.max(0,this.slowTime-2*delta)
+    if (this.slowTime >= 1.5 && this.scale>.66) {
       this.scale = Math.max(.65,this.scale-.12)
-      this.slowFrames = 0
+      this.slowTime = 0
       this.resize()
     }
   }
   private positionLamps(followTurn: boolean) {
     const eye=this.camera.position, yaw=this.camera.rotation.y
+    this.previousShadowPosition.copy(this.emergency.position)
+    const hadFixture=this.hasWarmFixture
     this.hasWarmFixture=this.station.positionPractical(this.emergency.position,eye,yaw,'amber',false,followTurn)
     this.hasCoolFixture=this.station.positionPractical(this.cockpit.position,eye,yaw,'blue',false,followTurn)
-    this.hasDeckFixture=this.station.positionPractical(this.deckLamp.position,eye,yaw,'amber',true,followTurn)
-    this.renderer.shadowMap.needsUpdate=this.hasWarmFixture
+    this.hasSnareFixture=this.station.positionPractical(this.snareLamp.position,eye,yaw,'beacon',false,followTurn)
+    this.hasDeckFixture=this.station.positionPractical(this.deckLamp.position,eye,yaw,'sill',true,followTurn)
+    if (this.hasWarmFixture && (!hadFixture || !this.previousShadowPosition.equals(this.emergency.position)))
+      this.renderer.shadowMap.needsUpdate=true
   }
   private recoil(flight: Flight, elapsed: number, field?: RenderBarrier) {
     const t=Math.max(0,elapsed), s=flight.state
@@ -195,8 +210,34 @@ export class World {
     this.menuEnteredAt = undefined
   }
 
+  // Draw the actual flight materials into an HDR target with the live lights. A first
+  // draw also uploads buffers and primes driver pipelines that shader compilation alone can miss.
+  private warmFlightMaterials() {
+    if (this.warmed.has(this.quality)) return
+    const models = new THREE.Group()
+    for (const source of [...this.fields.templates,...this.pickups.templates,this.boostFlow.mesh,this.moduleEffects.mesh]) {
+      const model = source.clone()
+      model.visible = true
+      model.traverse(object=>{ object.frustumCulled=false })
+      models.add(model)
+    }
+    const previous = this.renderer.getRenderTarget()
+    const target = new THREE.WebGLRenderTarget(1,1,{type:this.composer.readBuffer.texture.type})
+    this.scene.add(models)
+    try {
+      this.renderer.setRenderTarget(target)
+      this.renderer.render(this.scene,this.camera)
+      this.warmed.add(this.quality)
+    } finally {
+      this.renderer.setRenderTarget(previous)
+      models.removeFromParent()
+      target.dispose()
+    }
+  }
+
   /** Let the first frame finish on the GPU while the lightweight arrival screen is visible. */
   async waitForFirstFrame(signal: AbortSignal) {
+    this.warmFlightMaterials()
     const gl = this.renderer.getContext()
     if (!(gl instanceof WebGL2RenderingContext)) return
     const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0)
@@ -234,6 +275,7 @@ export class World {
   }
 
   render(flight: Flight|null,time: number,pulse: number,light?: MusicLight,impactAge?: number,showBoost = false) {
+    if (flight && !this.warmed.has(this.quality)) this.warmFlightMaterials()
     if (this.menu !== !flight) {
       this.menu = !flight
       if (this.menu) this.enterMenu()
@@ -262,7 +304,9 @@ export class World {
     const warmGain = menuTime === undefined ? 1 : .94 + .14*Math.sin(menuTime*.43)
     const coolGain = menuTime === undefined ? 1 : .93 + .105*Math.sin(menuTime*.35+1.7)
     if (menuTime !== undefined) this.station.setMenuLampLevels(warmGain,coolGain,menuTime)
-    this.fields.update(barriers,segments,time+Math.min(.72,Math.max(0,impactAge ?? 0)),pulse,spectrum)
+    this.pickups.update(flight,time)
+    this.moduleEffects.update(flight,time,this.width,this.height,this.reducedMotion.matches)
+    this.fields.update(barriers,segments,time+Math.min(.72,Math.max(0,impactAge ?? 0)),pulse,spectrum ? this.station.drives : undefined)
     if (flight) {
       const s = flight.state
       // Ease the eye back along the flight axis. The pilot and the obstacle checks
@@ -280,7 +324,7 @@ export class World {
     this.spill.position.set(next?.x ?? x,-1.18,next?.z ?? z-8)
     this.spill.intensity = next ? 42+pulse*13 : 0
     if (spectrum) {
-      const {bass, mids, highs, beatFlash} = spectrum
+      const {beatFlash} = spectrum
       const moved=this.lampAnchor.distanceToSquared(this.camera.position)
       const turning=Math.abs(yaw-this.lampYaw)>.24
       if (this.lampMode!=='music' || ((moved>14 || turning) && beatFlash<.12) || moved>64) {
@@ -291,24 +335,28 @@ export class World {
         this.lampAnchor.copy(this.camera.position)
         this.lampYaw=yaw
       }
-      const warmFlash=spectrum.warmFlash??beatFlash, coolFlash=spectrum.coolFlash??beatFlash
-      this.emergency.color.setRGB(1,.17+.12*bass,.042)
-      const kick=warmFlash*(1+1.65*warmFlash)
-      this.emergency.intensity=this.hasWarmFixture ? kick*(43+32*bass) : 0
-      this.cockpit.color.setRGB(.10,.33+.14*highs,1)
-      this.cockpit.intensity=this.hasCoolFixture ? coolFlash*(25+23*highs) : 0
-      this.deckLamp.intensity=this.hasDeckFixture ? kick*(14+10*bass) : 0
-      this.spill.color.setRGB(.48+.22*mids,.11+.045*highs,.91)
-      this.spill.intensity=next ? 4.2+1.5*mids+4.8*beatFlash : 0
+      const {kick,snare,hat,tone} = this.station.drives
+      this.emergency.color.setRGB(1,.15+.09*kick,.028)
+      this.emergency.intensity=this.hasWarmFixture ? kick*(88+38*kick) : 0
+      this.snareLamp.color.setRGB(1,.60,.55)
+      this.snareLamp.intensity=this.hasSnareFixture ? 96*snare : 0
+      this.cockpit.color.setRGB(.11,.49,1)
+      this.cockpit.intensity=this.hasCoolFixture ? 76*hat : 0
+      this.deckLamp.color.setRGB(1,.60,.23)
+      this.deckLamp.intensity=this.hasDeckFixture ? 42*tone : 0
+      this.spill.color.setRGB(.48+.22*tone,.11+.045*hat,.91)
+      this.spill.intensity=next ? 4.2+1.5*tone+4.8*Math.max(kick,snare,hat) : 0
     } else {
       if(this.lampMode!=='steady') {
         this.positionLamps(false)
         this.lampMode='steady'
       }
+      this.snareLamp.intensity=0
       this.emergency.color.setHex(0xff9b55)
       this.emergency.intensity=this.hasWarmFixture ? (flight?6:18*warmGain) : 0
       this.cockpit.color.setHex(0x9bcfff)
       this.cockpit.intensity=this.hasCoolFixture ? (flight?5:13*coolGain) : 0
+      this.deckLamp.color.setHex(0xff8d42)
       this.deckLamp.intensity=this.hasDeckFixture ? (flight?2.5:13*warmGain) : 0
       this.spill.color.setHex(0xd05eff)
       if (flight) this.spill.intensity = next ? 7 : 0
@@ -332,6 +380,8 @@ export class World {
   dispose() {
     this.viewport.disconnect()
     this.station.dispose()
+    this.moduleEffects.dispose()
+    this.pickups.dispose()
     this.fields.dispose()
     this.boostFlow.dispose()
     this.air.dispose()

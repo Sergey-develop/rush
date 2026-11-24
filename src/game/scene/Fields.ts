@@ -3,7 +3,7 @@ import { GAP_WIDTH, gapBounds } from '../types'
 import type { RenderBarrier, RenderSegment } from '../types'
 import { fieldFragment, fieldVertex } from '../shaders/field'
 import { reflectedField } from '../shaders/reflection'
-import type { MusicLight } from '../audio/response'
+import type { LampLevels } from './Station'
 import { makeTurnSignal } from './TurnSignal'
 
 type Kind = RenderBarrier['kind']
@@ -115,6 +115,10 @@ export class Fields {
   private pool = new Map<string,THREE.Group[]>()
   private used = new Map<string,number>()
   constructor(scene: THREE.Scene) { scene.add(this.layer) }
+  get templates() {
+    return [...Object.values(this.proto).map(source=>source.group), ...Object.values(this.arrows)]
+  }
+
   private place(key: string, proto: THREE.Group, x: number, z: number, yaw: number) {
     const index = this.used.get(key) ?? 0
     this.used.set(key,index+1)
@@ -126,22 +130,23 @@ export class Fields {
     group.position.set(x,0,z)
     group.rotation.y = yaw
   }
-  update(barriers: readonly RenderBarrier[], segments: readonly RenderSegment[], time: number,pulse: number,light?:MusicLight) {
+  update(barriers: readonly RenderBarrier[], segments: readonly RenderSegment[], time: number,pulse: number,light?:LampLevels) {
     this.used.clear()
+    const attack = light ? Math.max(light.kick,light.snare,light.hat) : 0
     for (const source of Object.values(this.proto)) {
       source.surface.uniforms.uTime!.value = time
-      source.surface.uniforms.uPulse!.value = light ? light.beatFlash : pulse
+      source.surface.uniforms.uPulse!.value = light ? attack : pulse
       source.surface.uniforms.uMusicEnabled!.value = light ? 1 : 0
-      source.surface.uniforms.uMids!.value = light?.mids ?? 0
-      source.surface.uniforms.uHighs!.value = light?.highs ?? 0
-      source.surface.uniforms.uAttack!.value = light ? .32*light.transient+.95*light.beatFlash : 0
+      source.surface.uniforms.uMids!.value = light?.tone ?? 0
+      source.surface.uniforms.uHighs!.value = light?.hat ?? 0
+      source.surface.uniforms.uAttack!.value = attack
       for(const {material,base} of source.rims) {
         material.color.copy(base)
         if (light) {
-          material.color.r *= .80+.67*light.mids
-          material.color.g *= .75+1.35*light.highs
-          material.color.b *= .82+.70*light.highs
-          material.color.multiplyScalar(.42+.15*light.transient+1.32*light.beatFlash)
+          material.color.r *= .80+.67*light.tone
+          material.color.g *= .75+1.35*light.hat
+          material.color.b *= .82+.70*light.hat
+          material.color.multiplyScalar(.42+1.47*attack)
         }
       }
     }

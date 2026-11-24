@@ -1,6 +1,7 @@
 export const START_SPEED = 12
 export const SPEED = 22
 export const MAX_BOOST_SPEED_GAIN = 8
+export const PICKUP_BOOST_SECONDS = 4
 export const ACCELERATION_TIME = 12
 export const GAP_WIDTH = 4.6
 export const FLOOR_Y = -3
@@ -49,6 +50,16 @@ export interface RenderBarrier extends RouteEvent {
   kind: BarrierKind
 }
 
+export interface Pickup {
+  id: number
+  kind: 'shield' | 'boost'
+  distance: number
+  x: number
+  y: number
+  z: number
+  yaw: number
+}
+
 export interface BeatEvent {
   beat: number
   kind: ObstacleKind
@@ -62,6 +73,7 @@ export interface FlightOptions {
 
 export interface FlightInput {
   vertical: number
+  verticalSensitivity?: number
   targetY?: number
   boost?: boolean
 }
@@ -74,6 +86,9 @@ export interface FlightState {
   roll: number
   distance: number
   speed: number
+  shield: boolean
+  boostSeconds: number
+  sprinting: boolean
   boosting: boolean
   boostLevel: number
   score: number

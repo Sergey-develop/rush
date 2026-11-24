@@ -45,7 +45,13 @@ function lamp(p:Part,x:number,z:number,length:number,warm:boolean) {
   const span=Math.min(1.35,length*.47)
   p('duct','steel',x,2.81,z,.46,.29,span+.18)
   p('plate','rubber',x,2.648,z,.38,span,.045,halfPi)
-  p('block',warm?'amber':'blue',x,2.613,z,.23,.035,span*.85)
+  if (warm) {
+    p('block','amber',x,2.613,z,.23,.035,span*.85)
+  } else {
+    // A quiet tick lights the centre lens. Hard metallic attacks reach the end cells.
+    for (let cell=0;cell<3;cell++)
+      p('block','blue',x,2.613,z+(cell-1)*span*.283,.23,.035,span*.275,0,0,0,Math.abs(cell-1))
+  }
   for(const at of [-.31,0,.31]) p('block','steel',x,2.58,z+at*span,.34,.036,.034)
 }
 

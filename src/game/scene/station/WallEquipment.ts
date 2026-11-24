@@ -84,6 +84,7 @@ function pressureManifold(p: Part, width: number) {
   for (const angle of [0,Math.PI/3,2*Math.PI/3]) {
     p('block','bronze',vx,-.24,.94,.035,.421,.035,0,0,angle)
   }
+  sillLamp(p,width,-width*.20)
 }
 
 function ventilation(p: Part, width: number) {
@@ -124,10 +125,21 @@ function switchgear(p: Part, width: number) {
     p('block','steel',x,.30,.84,.070,.22,.04)
     p('block','rubber',x,.35,.872,.091,.14,.06,-.32)
   }
-  p('block','amber',main-width*.127,.456,.848,.052,.032,.016)
+  p('block','beacon',main-width*.127,.456,.848,.052,.032,.016)
   for (const x of [main-width*.12,main,slim]) {
     p('tube','carbon',x,-1.48,.413,.128,.57,.128)
     p('tube','bronze',x,-1.56,.413,.157,.079,.157)
+  }
+}
+
+function sillLamp(p: Part, width: number, lampX: number) {
+  // Two cast feet tie the angled service light back into the folded kick sill.
+  for (const side of [-1,1]) p('block','carbon',lampX + side*.24,-2.54,.39,.11,.13,.48)
+  const lampW = Math.min(.79,width*.18)
+  p('plate','carbon',lampX,-2.56,.635,lampW+.15,.25,.16,-.69)
+  p('block','sill',lampX,-2.498,.714,lampW,.091,.035,-.69)
+  for(const xx of [lampX-lampW*.41,lampX+lampW*.41]) {
+    p('block','steel',xx,-2.488,.732,.035,.163,.038,-.69)
   }
 }
 
@@ -189,13 +201,7 @@ function observation(p: Part, width: number) {
   for(const xx of [join-.18,join-.095]) {
     p('tube','steel',xx,-1.52,.56,.457,.064,.457,0,0,halfPi)
   }
-  // Recess the short service light under the lower main, leaving both pipes in silhouette.
-  const lampX=width*.22, lampW=Math.min(.79,width*.18)
-  p('plate','carbon',lampX,-2.56,.635,lampW+.15,.25,.16,-.69)
-  p('block','amber',lampX,-2.498,.714,lampW,.091,.035,-.69)
-  for(const xx of [lampX-lampW*.41,lampX+lampW*.41]) {
-    p('block','steel',xx,-2.488,.732,.035,.163,.038,-.69)
-  }
+  sillLamp(p,width,width*.22)
 }
 
 function emergencyStation(p: Part, width: number) {
@@ -206,7 +212,7 @@ function emergencyStation(p: Part, width: number) {
     p('tube','bronze',x,y+end*.37,.655,.43,.14,.43)
     p('ring','steel',x,y+end*.30,.666,.46,.46,.06,halfPi)
   }
-  p('tube','amber',x,y,.66,.289,.62,.289)
+  p('tube','beacon',x,y,.66,.289,.62,.289)
   for(let i=0;i<8;i++) {
     const a=i*Math.PI/4
     p('tube','carbon',x+Math.cos(a)*.211,y,.66+Math.sin(a)*.211,.027,.67,.027)

@@ -37,8 +37,10 @@
   letter-spacing: -.024em; font-variant-numeric: tabular-nums; -webkit-text-stroke: .012em currentColor;
   text-shadow: 0 1px 5px #050411db;
 }
-.hud-secondary { position: absolute; left: 12%; top: 89%; white-space: nowrap; display: flex; gap: .9em;
+.hud-secondary { position: absolute; left: 12%; top: 89%; width: 100%; white-space: nowrap; display: flex; flex-wrap: wrap; gap: .35em .9em;
   font: 730 clamp(10px,calc(10 * var(--hud-unit)),16px)/1.1 'Exo 2',sans-serif; text-shadow: 0 1px 3px #04030a; }
+.hud-shield { color: #88ffdb; }
+.hud-accelerator { color: #ffce8b; }
 .hud-combo { color: #f8dddd; }
 .hud-boost { color: #ffb4d0; }
 .hud-actions {

@@ -1,3 +1,44 @@
+/** Infer a nominal beat interval from repeated attacks. Nearby strong low-frequency
+ * onsets have more influence than subdivisions; unmetered clips use a neutral tempo. */
+export function estimateBpm(cues: Float32Array) {
+  if (cues.length < 3*4) return 120
+  const minBpm=55, maxBpm=210
+  const votes = new Float64Array(maxBpm+1)
+  const singleBeat = new Float64Array(maxBpm+1)
+  const weight = (i:number)=>cues[i+1]*(.25+.75*cues[i+2])
+  for (let i=0;i<cues.length;i+=4) {
+    for (let j=i+4;j<cues.length;j+=4) {
+      const interval=cues[j]-cues[i]
+      if (interval>2.2) break
+      if (interval<=0) continue
+      for (let beats=1;beats<=4;beats++) {
+        const bpm=60*beats/interval
+        if (bpm<minBpm-2 || bpm>maxBpm+2) continue
+        const strength=weight(i)*weight(j)/beats
+        for (let b=Math.max(minBpm,Math.ceil(bpm-2));b<=Math.min(maxBpm,bpm+2);b++) {
+          const support=strength*Math.max(0,1-Math.abs(bpm-b)/2)
+          votes[b]+=support
+          if (beats===1) singleBeat[b]+=support
+        }
+      }
+    }
+  }
+  let best=120
+  for (let bpm=minBpm;bpm<=maxBpm;bpm++) {
+    if (votes[bpm]>votes[best]) best=bpm
+  }
+  // Alternating kick/snare accents can make every other beat win. Require actual
+  // intermediate onsets before choosing the faster pulse over a slow groove.
+  if (2*best<=maxBpm) {
+    let faster=2*best
+    for (let bpm=2*best-1;bpm<=Math.min(maxBpm,2*best+1);bpm++) {
+      if (votes[bpm]>votes[faster]) faster=bpm
+    }
+    if (votes[faster]>.85*votes[best] && singleBeat[faster]>.42*singleBeat[best]) return faster
+  }
+  return best
+}
+
 /** Pick recorded attacks on the locally dominant pulse. The grid only selects
  * attacks: it never moves one or generates a flash during silence. */
 export function selectPulseCues(cues: Float32Array, nominalBpm: number) {

@@ -15,8 +15,8 @@ const scatter = `
   uniform sampler2D sceneDepth;
   uniform sampler3D airNoise;
   uniform mat4 viewToWorld, inverseProjection;
-  uniform vec4 lamps[4];
-  uniform vec3 tint[4];
+  uniform vec4 lamps[5];
+  uniform vec3 tint[5];
   uniform float drift;
   uniform int steps;
   varying vec2 vUv;
@@ -46,7 +46,7 @@ const scatter = `
                       * (1.-smoothstep(2.73,3.12,abs(p.y)));
       float visibility = exp(-density*width);
       vec3 incident = vec3(.037,.049,.063);
-      for (int l = 0; l < 4; l++) {
+      for (int l = 0; l < 5; l++) {
         vec3 toLight = lamps[l].xyz-p;
         float r2 = dot(toLight,toLight);
         float forward = .65+.35*max(0.,dot(ray,toLight*inversesqrt(max(.001,r2))));
@@ -102,8 +102,8 @@ function noiseVolume() {
 export class CorridorAir extends Pass {
   private readonly noise=noiseVolume()
   private readonly cloud:THREE.WebGLRenderTarget
-  private readonly incident=Array.from({length:4},()=>new THREE.Vector4())
-  private readonly colors=Array.from({length:4},()=>new THREE.Color())
+  private readonly incident=Array.from({length:5},()=>new THREE.Vector4())
+  private readonly colors=Array.from({length:5},()=>new THREE.Color())
   private readonly volumeMaterial:THREE.ShaderMaterial
   private readonly mixMaterial:THREE.ShaderMaterial
   private readonly quad=new FullScreenQuad()

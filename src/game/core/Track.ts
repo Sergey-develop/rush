@@ -1,7 +1,7 @@
 import {
-  ACCELERATION_TIME, DEFAULT_BPM, MAX_BOOST_SPEED_GAIN, SPEED, START_SPEED, isTurn,
+  ACCELERATION_TIME, DEFAULT_BPM, MAX_BOOST_SPEED_GAIN, PICKUP_BOOST_SECONDS, SPEED, START_SPEED, isTurn,
   type BeatEvent, type FlightOptions, type ObstacleKind,
-  type RenderBarrier, type RenderSegment, type RouteEvent,
+  type Pickup, type RenderBarrier, type RenderSegment, type RouteEvent,
 } from '../types'
 import type { SongPace } from '../audio/SongPace'
 
@@ -10,6 +10,8 @@ const LOOK_AHEAD = 132
 const RETAIN_BEHIND = 24
 const HALF_CORNER = 5
 const TURN_ANIMATION_DISTANCE = 5.4
+const FIRST_PICKUP_DISTANCE = 240
+const PICKUP_SPACING = 420
 const MIN_BOOSTED_APPROACH = .94
 const OBSTACLES: readonly ObstacleKind[] = ['top', 'center', 'bottom', 'left', 'right']
 
@@ -62,6 +64,7 @@ function validateMap(map: readonly BeatEvent[], bpm: number) {
 export class Track {
   readonly segments: TrackSegment[] = []
   readonly events: RouteEvent[] = []
+  readonly pickups: Pickup[] = []
   readonly barriers: RenderBarrier[] = []
   readonly bpm: number
   private beatmap: readonly BeatEvent[]
@@ -71,6 +74,9 @@ export class Track {
   private segmentId = 0
   private eventId = 0
   private beat = 0
+  private boostedApproachEnd = -Infinity
+  private nextPickupDistance = FIRST_PICKUP_DISTANCE
+  private nextPickupKind: Pickup['kind'] = 'shield'
   private lastDistance = 0
   private barriersSinceTurn = 0
   private seriesIndex = 0
@@ -142,12 +148,17 @@ export class Track {
       // A boosted pilot can encounter geometry intended for a quiet passage while
       // the music is still fast. Leave room for an opposite-height reaction after a corner.
       const boostFactor = 1 + MAX_BOOST_SPEED_GAIN / SPEED
-      const earliest = this.pace.timeAtDistance(this.lastDistance / boostFactor)
+      const stackedFactor = 1 + 2 * MAX_BOOST_SPEED_GAIN / SPEED
+      const fastestSoFar = this.boostedApproachEnd > 0 ? stackedFactor : boostFactor
+      const earliest = this.pace.timeAtDistance(this.lastDistance / fastestSoFar)
       const neutralArrival = this.pace.timeAtDistance(this.lastDistance)
       distance = Math.max(distance, this.pace.distanceAt(neutralArrival + MIN_REACTION_SECONDS))
       const upper = Math.max(distance, this.lastDistance + MIN_REACTION_SECONDS*SPEED)
       const maximum = this.pace.fastestBetween(earliest, this.pace.timeAtDistance(upper))
       distance = Math.max(distance, this.lastDistance + maximum * boostFactor * MIN_BOOSTED_APPROACH)
+      if (this.lastDistance < this.boostedApproachEnd || (this.nextPickupKind === 'boost' && distance >= this.nextPickupDistance)) {
+        distance = Math.max(distance, this.lastDistance + maximum * stackedFactor * MIN_BOOSTED_APPROACH)
+      }
     }
     if (!Number.isFinite(distance)) throw new Error('Beatmap event exceeds the transport time range.')
     const approach = distance - HALF_CORNER - this.cursorDistance
@@ -158,6 +169,7 @@ export class Track {
       this.forward(length)
       return
     }
+    const previousDistance = this.lastDistance
     this.beat = beat
     this.lastDistance = distance
     this.pending = null
@@ -166,6 +178,24 @@ export class Track {
     this.forward(HALF_CORNER)
     const event: RouteEvent = { id: this.eventId++, kind, distance, x: this.x, z: this.z, yaw }
     this.events.push(event)
+    // Place the module on the approach, already aligned with the upcoming opening.
+    const offset = Math.min(10, (distance - previousDistance) / 2)
+    const pickupDistance = distance - offset
+    if (pickupDistance >= this.nextPickupDistance) {
+      const kind = this.nextPickupKind
+      const low = kind === 'boost'
+      const height = event.kind === 'center' ? (low ? -.99 : .41)
+        : event.kind === 'bottom' || (isTurn(event.kind) && low) ? -1.25 : 1.25
+      // Allow one more approach for the throttle to ease back after the module expires.
+      if (low) this.boostedApproachEnd = pickupDistance + (PICKUP_BOOST_SECONDS + MIN_REACTION_SECONDS) * (SPEED + 2 * MAX_BOOST_SPEED_GAIN)
+      this.nextPickupDistance = pickupDistance + PICKUP_SPACING
+      this.nextPickupKind = low ? 'shield' : 'boost'
+      this.pickups.push({
+        id: event.id, kind, distance: pickupDistance, yaw,
+        x: event.x + Math.sin(yaw) * offset, z: event.z + Math.cos(yaw) * offset,
+        y: height,
+      })
+    }
     if (isTurn(kind)) {
       this.heading += kind === 'left' ? 1 : -1
       this.barriersSinceTurn = 0
@@ -180,6 +210,7 @@ export class Track {
     while (this.cursorDistance < distance + LOOK_AHEAD) this.generate()
     const oldest = distance - RETAIN_BEHIND
     while (this.segments.length && this.segments[0]!.start + this.segments[0]!.length < oldest) this.segments.shift()
+    while (this.pickups.length && this.pickups[0]!.distance < oldest) this.pickups.shift()
     while (this.events.length && this.events[0]!.distance < oldest) this.events.shift()
     while (this.barriers.length && this.barriers[0]!.distance < oldest) this.barriers.shift()
   }

@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { tiltState, toggleTilt } from '../game/controls/tilt'
+import { enableTilt, stopTilt, tiltState } from '../game/controls/tilt'
+const enabled = defineModel<boolean>({required:true})
+function toggle() {
+  const next = !enabled.value
+  enabled.value = next
+  if (next) void enableTilt()
+  else stopTilt()
+}
 </script>
 <template>
   <div class="tilt-control">
-    <button type="button" class="race-secondary" :aria-pressed="tiltState==='on'" @click="toggleTilt">
-      {{ tiltState==='on'?'Выключить наклон':tiltState==='waiting'?'Отменить':'Включить наклон' }}
+    <button type="button" class="race-secondary" :aria-pressed="enabled" @click="toggle">
+      Наклон · {{ enabled ? 'вкл.' : 'выкл.' }}
     </button>
-    <p aria-live="polite">{{ tiltState==='unavailable'?'Датчик недоступен. Управляйте касанием.':tiltState==='waiting'?'Держите телефон в удобном положении…':tiltState==='on'?'Поднимите верхний край для набора высоты, опустите для снижения.':'Держите телефон удобно и включите управление наклоном.' }}</p>
+    <p aria-live="polite">{{ !enabled ? 'Меняйте высоту касанием.' : tiltState==='unavailable' ? 'Нет данных датчика. Можно управлять касанием.' : tiltState==='on' ? 'Поднимите верхний край для набора высоты, опустите для снижения.' : 'Держите телефон в удобном положении для калибровки.' }}</p>
+    <button v-if="enabled && tiltState==='unavailable'" type="button" class="race-secondary" @click="enableTilt">Повторить подключение</button>
   </div>
 </template>

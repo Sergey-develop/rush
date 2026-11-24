@@ -12,8 +12,10 @@ import ResultDigits from './components/ResultDigits.vue'
 import WeeklyLeaders from './components/WeeklyLeaders.vue'
 import RankingPanel from './components/RankingPanel.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
+import SongPanel from './components/SongPanel.vue'
 import FlightBriefing from './components/FlightBriefing.vue'
-import { completeBriefing, demos, hasCompletedBriefing, loadRuns, loadSettings, rank, saveRun, storeSettings } from './ui/profile'
+import { calibrateTilt, canStartTiltWithoutGesture, enableTilt, stopTilt, tiltState } from './game/controls/tilt'
+import { demos, loadRuns, loadSettings, rank, saveRun, storeSettings } from './ui/profile'
 import './styles/interface.scss'
 import './styles/flight-hud.scss'
 import './styles/station-console.scss'
@@ -28,7 +30,7 @@ const frame = shallowRef<GameFrame>({
 })
 const options = ref(loadSettings())
 const runs = shallowRef(loadRuns())
-const page = ref<'settings' | 'rating' | 'briefing' | 'error' | null>(null)
+const page = ref<'settings' | 'rating' | 'briefing' | 'music' | 'error' | null>(null)
 const touchBriefing = ref(false)
 const filter = ref<'week' | 'all'>('week')
 const busy = ref(false)
@@ -37,13 +39,13 @@ const bootProgress = ref(0)
 const skipRequested = ref(false)
 const hasPlayed = ref(false)
 const playButton = ref<HTMLButtonElement>()
+const songButton = ref<HTMLButtonElement>()
 const failure = ref('')
 const modal = computed(() => page.value ?? (frame.value.phase === 'paused' ? 'paused' : frame.value.phase === 'over' ? 'over' : null))
 const demo = computed(() => runs.value.length === 0)
 const weekly = computed(() => demo.value ? demos : rank(runs.value, true).slice(0,3))
 const ranking = computed(() => demo.value ? demos : rank(runs.value, filter.value === 'week'))
 let engine: Engine | undefined
-let briefingSeen = hasCompletedBriefing()
 let briefingOpener: HTMLElement | undefined
 let launchAttempt = 0
 let lastHud = 0
@@ -57,11 +59,9 @@ let releaseFirstLight: (() => void) | undefined
 
 function receive(state: GameFrame) {
   const prior = frame.value.phase
-  if (state.phase === 'countdown' && prior === 'menu') {
+  if (state.phase === 'countdown' && prior !== 'countdown') {
     hasPlayed.value = true
     if (page.value === 'briefing') {
-      briefingSeen = true
-      completeBriefing()
       page.value = null
     }
   }
@@ -140,8 +140,18 @@ function showError(error: unknown) {
   page.value = 'error'
 }
 
+function startPhoneTilt() {
+  if (options.value.tiltEnabled && window.matchMedia('(pointer: coarse)').matches && tiltState.value === 'off')
+    void enableTilt()
+}
+function openSettings() {
+  startPhoneTilt()
+  page.value = 'settings'
+}
+
 function openBriefing(event?: MouseEvent) {
   if (busy.value || bootVisible.value) return
+  startPhoneTilt()
   briefingOpener = event?.currentTarget instanceof HTMLElement ? event.currentTarget : playButton.value
   const pointer = event && 'pointerType' in event ? event.pointerType : ''
   touchBriefing.value = pointer ? pointer !== 'mouse' : window.matchMedia('(pointer: coarse)').matches
@@ -149,12 +159,14 @@ function openBriefing(event?: MouseEvent) {
 }
 
 function requestFlight(event?: MouseEvent) {
-  if (!briefingSeen) openBriefing(event)
+  if (!options.value.hideBriefing) openBriefing(event)
   else void launch()
 }
 
 async function launch() {
   if (busy.value || bootVisible.value) return
+  startPhoneTilt()
+  calibrateTilt()
   const attempt = ++launchAttempt
   busy.value = true
   try {
@@ -208,6 +220,7 @@ watch(modal, async (value, previous) => {
   await nextTick()
   if (value && dialog.value && !dialog.value.open) dialog.value.showModal()
   else if (!value && dialog.value?.open) dialog.value.close()
+  if (previous === 'music' && !value) songButton.value?.focus({ preventScroll:true })
   if (previous === 'briefing') {
     if (!value && frame.value.phase === 'menu') briefingOpener?.focus({ preventScroll:true })
     briefingOpener = undefined
@@ -215,6 +228,7 @@ watch(modal, async (value, previous) => {
 })
 
 onMounted(() => {
+  if (canStartTiltWithoutGesture()) startPhoneTilt()
   window.addEventListener('keydown', keyboard, true)
   // Give the loading screen a paint before the renderer allocates the station.
   paintFrame = requestAnimationFrame(() => {
@@ -224,6 +238,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   disposed = true
+  stopTilt()
   releaseFirstLight?.()
   cancelAnimationFrame(paintFrame)
   window.clearTimeout(entryTimer)
@@ -246,10 +261,11 @@ onBeforeUnmount(() => {
         <h1 class="poster-sr">Corridor Rush</h1>
         <nav class="poster-nav" aria-label="Главное меню">
           <button ref="playButton" class="poster-action poster-start" :disabled="busy" :aria-busy="busy" @click="requestFlight">
-            <span>{{ busy ? 'Загрузка трека' : 'Играть' }}</span><ChevronRight aria-hidden="true"/>
+            <span>{{ busy ? 'Загрузка трека' : options.hideBriefing ? 'Играть' : 'К старту' }}</span><ChevronRight aria-hidden="true"/>
           </button>
+          <button ref="songButton" class="poster-action poster-nav-link" :disabled="busy" @click="page='music'">Своя песня</button>
           <button class="poster-action poster-nav-link" :disabled="busy" @click="openRating">Рейтинг</button>
-          <button class="poster-action poster-nav-link" :disabled="busy" @click="page='settings'">Настройки</button>
+          <button class="poster-action poster-nav-link" :disabled="busy" @click="openSettings">Настройки</button>
         </nav>
         <button class="poster-guide poster-records-link" type="button" :disabled="busy" @click="openBriefing">
           <BookOpen aria-hidden="true"/>Как играть
@@ -268,8 +284,9 @@ onBeforeUnmount(() => {
       </div>
     </template>
     <dialog ref="dialog" class="overlay-dialog race-modal" :data-view="modal" aria-labelledby="dialog-title" @cancel.prevent="dismiss()"
-            @click="($event.target===dialog && (modal==='rating'||modal==='settings'||modal==='briefing')) && dismiss()">
-      <FlightBriefing v-if="modal==='briefing'" :touch="touchBriefing" :busy="busy" @start="launch" @back="dismiss"/>
+            @click="($event.target===dialog && (modal==='rating'||modal==='settings'||modal==='briefing'||modal==='music')) && dismiss()">
+      <FlightBriefing v-if="modal==='briefing'" v-model:hidden="options.hideBriefing" v-model:tilt="options.tiltEnabled" :desktop-control="options.desktopControl" :touch="touchBriefing" :busy="busy" @start="launch" @back="dismiss"/>
+      <SongPanel v-else-if="modal==='music' && engine" :engine="engine" @back="dismiss"/>
       <section v-else-if="modal==='settings'" class="race-sheet">
         <header class="race-head">
           <h2 id="dialog-title">Настройки</h2>
@@ -289,13 +306,13 @@ onBeforeUnmount(() => {
           </dl>
           <div class="race-pause-links">
             <button class="race-secondary" type="button"
-                    @vue:mounted="({ el }: { el: HTMLButtonElement }) => dialog?.open && el.focus({ preventScroll: true })" @click="page='settings'">Настройки</button>
+                    @vue:mounted="({ el }: { el: HTMLButtonElement }) => dialog?.open && el.focus({ preventScroll: true })" @click="openSettings">Настройки</button>
             <button class="race-secondary" type="button" @click="menu()">Главное меню</button>
           </div>
         </div>
         <footer class="race-foot"><button class="race-primary" type="button" autofocus @click="resume()">Продолжить</button></footer>
       </section>
-      <RunResult v-else-if="modal==='over'" :finished="frame.reason==='finished'" :track="frame.track" :score="frame.score" :distance="frame.distance" :busy="busy" @retry="launch" @menu="menu"/>
+      <RunResult v-else-if="modal==='over'" :finished="frame.reason==='finished'" :track="frame.track" :score="frame.score" :distance="frame.distance" :busy="busy" @retry="requestFlight()" @menu="menu"/>
       <section v-else-if="modal==='error'" class="race-sheet">
         <header class="race-head"><h2 id="dialog-title">Ошибка запуска</h2></header>
         <div class="race-body race-failure"><p>Не удалось запустить игру в этом браузере.</p><p>{{ failure }}</p></div>

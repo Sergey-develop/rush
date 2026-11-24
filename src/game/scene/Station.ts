@@ -8,6 +8,13 @@ import { makeBeam, makeDuct, makeFan, makeGrate } from './station/Fabrication'
 import { makePortFrame, makeSpaceView } from './station/Observatory'
 import { wallEquipment } from './station/WallEquipment'
 
+export type LampLevels = Required<Pick<MusicLight,'kick' | 'snare' | 'hat' | 'tone'>>
+
+/** Convert the measured sound amplitude to linear light power before HDR tone mapping. */
+function lampDrive(envelope: number) {
+  return 1.12 * envelope * envelope
+}
+
 const halfPi = Math.PI / 2
 type Lamp = 'amber' | 'blue'
 type Buffers = Map<string, number[]>
@@ -77,9 +84,9 @@ class ModuleWriter {
   }
 
   private part(shape: Shape, material: Finish, x: number, y: number, z: number,
-    width: number, height: number, depth: number, rx = 0, ry = 0, rz = 0) {
+    width: number, height: number, depth: number, rx = 0, ry = 0, rz = 0, circuit = this.circuit) {
     const key = material === 'amber' || material === 'blue'
-      ? shape + '/' + material + '/' + this.circuit : shape + '/' + material
+      ? shape + '/' + material + '/' + circuit : shape + '/' + material
     let stream = this.buffers.get(key)
     if (!stream) {
       stream = []
@@ -134,7 +141,7 @@ class ModuleWriter {
       }
       const lampX=width*.32
       p('plate','carbon',lampX,.40,.146,.30,.67,.17)
-      p('tube','amber',lampX,.40,.276,.15,.37,.15)
+      p('tube','beacon',lampX,.40,.276,.15,.37,.15)
       for(const dy of [-.19,.19]) p('tube','steel',lampX,.40+dy,.276,.205,.066,.205)
     } else {
       const nearWindow=side===-1 && variant===4 && this.segment.yaw===0 && Math.abs(this.segment.x)<.1
@@ -203,6 +210,8 @@ export class Station {
   private readonly oldEnvironment: THREE.Texture | null
   private readonly modules = new Map<number, CachedModule>()
   private readonly lampBanks: Record<Lamp, THREE.MeshBasicMaterial[]>
+  // Linear drives are also used by the local light pools and fog.
+  readonly drives: LampLevels = {kick:0, snare:0, hat:0, tone:0}
   private readonly fill = new THREE.HemisphereLight(0xcad6d8,0x79736b)
   private readonly warmKey = new THREE.DirectionalLight(0xf8c398)
   private readonly coolKey = new THREE.DirectionalLight(0xb0c9d7)
@@ -239,6 +248,7 @@ export class Station {
       rubber:new THREE.MeshStandardMaterial({color:0x252626,roughness:.87,metalness:.035}),
       chrome:makeMetal(0xffffff,.70,1),bronze:makeMetal(0xecbb87,.90,.93),
       blue: luminous(.30, 1.09, 3.7), amber: luminous(3.9, 1.23, .30),
+      beacon: luminous(3.9, 1.23, .30), sill: luminous(3.9, 1.23, .30),
       sector:new THREE.MeshStandardMaterial({map:sign,emissiveMap:sign,emissive:0xded7c6,emissiveIntensity:.24,roughness:.68,metalness:.29}),
       space: space.material,
     }
@@ -265,13 +275,13 @@ export class Station {
   }
 
   /** Position a small pool just inside the chosen bank's real diffuser. */
-  positionPractical(target: THREE.Vector3, eye: THREE.Vector3, yaw: number, lamp: Lamp, lowMount=false, followTurn=false) {
+  positionPractical(target: THREE.Vector3, eye: THREE.Vector3, yaw: number, lamp: Lamp | 'sill' | 'beacon', lowMount=false, followTurn=false) {
     const sideX = Math.cos(yaw), sideZ = -Math.sin(yaw)
     const near = lowMount ? 4 : lamp === 'amber' ? 7 : 11
     const preferredSide = lamp === 'amber' ? -3.9 : 3.9
     let best = Infinity
     for (const module of this.modules.values()) for (const [key,fixtures] of module.buffers) {
-      if (!key.includes('/'+lamp+'/')) continue
+      if (key.split('/')[1] !== lamp) continue
       for (let i = 12; i < fixtures.length; i += 16) {
         const x = fixtures[i], y = fixtures[i + 1], z = fixtures[i + 2]
         if(lowMount && y> -1.65) continue
@@ -283,7 +293,11 @@ export class Station {
           + (!lowMount && y< -1.65 ? 5 : 0)
         if (cost >= best) continue
         best = cost
-        target.set(x - sideX * side * .085, y * .86, z - sideZ * side * .085)
+        // Anchor the bulb inside its mounting bay. Camera yaw selects a fixture but
+        // must not slide the same bulb (and invalidate its six shadow faces) while banking.
+        const mountX=Math.cos(module.layout.yaw), mountZ=-Math.sin(module.layout.yaw)
+        const wallOffset=(x-module.layout.x)*mountX+(z-module.layout.z)*mountZ
+        target.set(x - mountX*wallOffset*.085, y*.86, z - mountZ*wallOffset*.085)
       }
     }
     return Number.isFinite(best)
@@ -299,21 +313,28 @@ export class Station {
   }
 
   update(segments: readonly RenderSegment[], time: number, pulse: number, light?: MusicLight) {
-    const flash = light?.beatFlash ?? 0
-    const warmFlash=light?.warmFlash??flash, coolFlash=light?.coolFlash??flash
-    // A physical bank keeps its voice. A small high-frequency fill cannot move
-    // a bass light to the other wall or relight the entire corridor.
-    const warm = light ? 1.36 + .53*light.bass : 1
-    const cool = light ? 1.13 + .46*light.highs : 1
+    const {drives} = this
+    drives.kick = lampDrive(light?.kick ?? light?.warmFlash ?? light?.beatFlash ?? 0)
+    drives.snare = lampDrive(light?.snare ?? 0)
+    drives.hat = lampDrive(light?.hat ?? light?.coolFlash ?? light?.highs ?? 0)
+    drives.tone = lampDrive(light?.tone ?? light?.mids ?? 0)
+    const sill = this.materials.sill as THREE.MeshBasicMaterial
+    const beacon = this.materials.beacon as THREE.MeshBasicMaterial
+    if (light) {
+      sill.color.setRGB(3.25,1.82,.57).multiplyScalar(.012 + 1.7*drives.tone)
+      beacon.color.setRGB(4.5,1.9,1.45).multiplyScalar(.010 + 2.1*drives.snare)
+    } else {
+      sill.color.setRGB(3.26,.98,.216)
+      beacon.color.setRGB(3.26,.98,.216)
+    }
     for (let bank=0;bank<3;bank++) {
-      const warmWeight=bank===0 ? 1 : bank===1 ? .52 : .75
-      const coolWeight=bank===1 ? 1 : bank===2 ? .56 : .77
-      const warmDrive=light ? .009+warmFlash*(.42+2.3*warmFlash)*warmWeight : .90
-      const coolDrive=light ? .009+coolFlash*coolFlash*(1.78-.78*coolFlash)*coolWeight : .90
-      this.lampBanks.amber[bank].color.setRGB(3.62,light ? 1.09 : 1.09+Math.sin(time*1.65)*.018,.24)
-        .multiplyScalar(warmDrive*warm)
-      this.lampBanks.blue[bank].color.setRGB(.27,.98+(light?.highs??pulse)*.17,3.35)
-        .multiplyScalar(coolDrive*cool)
+      const warmWeight = bank===1 ? .72 : 1
+      const kick = light ? .012 + 2.8*drives.kick*warmWeight : .90
+      const hat = bank===0 ? drives.hat : Math.max(0,(drives.hat-.09)/.91)
+      this.lampBanks.amber[bank].color.setRGB(3.62,light ? .64 : 1.09+Math.sin(time*1.65)*.018,.14)
+        .multiplyScalar(kick)
+      this.lampBanks.blue[bank].color.setRGB(.29,1.46+(light ? drives.hat : pulse)*.25,3.7)
+        .multiplyScalar(light ? .012+2.1*hat : .90)
     }
     if (segments.length === this.modules.size && segments.every(s => sameLayout(this.modules.get(s.id)?.layout, s))) return
     const active = new Set<number>()
@@ -338,7 +359,7 @@ export class Station {
         const capacity = 2 ** Math.ceil(Math.log2(Math.max(32, count * 1.25)))
         const material = bank === undefined ? this.materials[finish] : this.lampBanks[finish as Lamp][Number(bank)]
         mesh = new THREE.InstancedMesh(this.shapes[shape], material, capacity)
-        mesh.receiveShadow=finish!=='amber' && finish!=='blue' && finish!=='space'
+        mesh.receiveShadow=finish!=='amber' && finish!=='blue' && finish!=='sill' && finish!=='beacon' && finish!=='space'
         // The major housings and ribs provide the lamp shadows. Fine grilles and wiring
         // still receive them without being drawn six more times for a point-light cube.
         mesh.castShadow=mesh.receiveShadow && (shape==='duct'||shape==='beam'||shape==='plate'||shape==='port'||shape==='block')

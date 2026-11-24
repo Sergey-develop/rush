@@ -1,10 +1,9 @@
-import type { GameSettings } from '../game/contracts'
+import type { DesktopControl, GameSettings } from '../game/contracts'
 
 const settingsKey = 'corridor-rush/settings/1'
 const rankingKey = 'corridor-rush/runs/1'
-const briefingKey = 'corridor-rush:briefing:v1'
 
-export interface PlayerOptions extends GameSettings { pilot: string }
+export interface PlayerOptions extends GameSettings { desktopControl: DesktopControl; pilot: string; tiltEnabled: boolean; hideBriefing: boolean }
 export interface Run {
   pilot: string
   score: number
@@ -13,6 +12,7 @@ export interface Run {
 }
 
 const defaults: PlayerOptions = {
+  desktopControl: 'keyboard', tiltEnabled: true, hideBriefing: false,
   pilot: 'Пилот', volume: 0.65, muted: false, sensitivity: 1, invert: false, quality: 'high',
 }
 
@@ -36,13 +36,13 @@ export function loadSettings(): PlayerOptions {
     quality: options.quality === 'low' ? 'low' : 'high',
     invert: options.invert === true,
     muted: options.muted === true,
+    desktopControl: options.desktopControl === 'mouse' ? 'mouse' : 'keyboard',
+    tiltEnabled: options.tiltEnabled !== false,
+    hideBriefing: options.hideBriefing === true,
   }
 }
 
 export function storeSettings(options: PlayerOptions) { write(settingsKey, options) }
-
-export function hasCompletedBriefing() { return read(briefingKey) === 1 }
-export function completeBriefing() { write(briefingKey, 1) }
 
 export function loadRuns(): Run[] {
   const stored = read(rankingKey)

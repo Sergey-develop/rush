@@ -106,6 +106,9 @@ dialog.race-modal::backdrop {
   min-width: 0; margin: 0; border-bottom: 1px solid var(--race-line);
   font: 400 clamp(14px,4.13cqw,44px)/1.12 'Russo One','Exo 2',sans-serif; text-transform: uppercase;
 }
+.race-settings-main:has(.tilt-control) { grid-template-rows: minmax(42px,1fr) auto minmax(42px,1fr) auto; }
+.race-setting-line .tilt-control { padding-block: .24em; text-transform: none; }
+.race-setting-line .tilt-control p { margin: .2em 0; color: var(--race-muted); font: 500 clamp(12px,1.8cqw,18px)/1.2 'Exo 2',sans-serif; }
 .race-settings-main > .race-setting-line:nth-child(3) { border-bottom: 0; }
 .race-setting-line > label,.race-setting-line > span:first-child { min-width: 0; }
 .race-settings-main > .race-setting-line > :first-child { transform:scaleX(1.08); transform-origin:left center; }
@@ -137,6 +140,7 @@ dialog.race-modal::backdrop {
   text-align:center; color:var(--race-cream); border:0; background:transparent; padding:0;
 }
 .race-stepper strong { font:400 clamp(14px,3.4cqw,36px)/1.1 'Russo One','Exo 2',sans-serif; text-transform:uppercase; }
+.race-stepper .flight-keys { white-space: nowrap; font-size: clamp(14px,2.9cqw,32px); }
 .race-stepper button,.race-control-link > span:first-child,.race-control-link > svg {
   display:inline-grid; place-items:center; width:clamp(27px,5.6cqw,56px); height:clamp(32px,5.5cqw,48px);
   color:var(--race-cream); background:transparent; border:0; padding:0;

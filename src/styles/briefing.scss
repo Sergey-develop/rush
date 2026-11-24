@@ -4,6 +4,11 @@
 }
 .poster-menu .poster-nav { bottom: max(var(--poster-bottom),calc(max(3.8vh,env(safe-area-inset-bottom)) + 39px)); }
 .briefing-body { display: grid; align-items: stretch; }
+.briefing-choice {
+  display: flex; align-items: center; gap: .65em; padding-block: .65em; cursor: pointer;
+  color: var(--race-cream); font: 600 clamp(14px,2.2cqw,21px)/1.2 'Exo 2',sans-serif;
+}
+.briefing-choice input { width: 1.25em; height: 1.25em; accent-color: #ff3c92; cursor: pointer; }
 .briefing-body:focus-visible { outline: 1px solid var(--race-muted); outline-offset: -1px; }
 .flight-briefing .race-head h2:focus { outline: none; }
 .briefing-list {

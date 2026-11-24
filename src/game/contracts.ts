@@ -11,10 +11,15 @@ export interface GameFrame {
   reason: 'barrier' | 'finished' | null
   altitude: number
   speed?: number
+  shield?: boolean
+  boostSeconds?: number
+  sprinting?: boolean
   boostLevel?: number
   track?: string
 }
+export type DesktopControl = 'keyboard' | 'mouse'
 export interface GameSettings {
+  desktopControl?: DesktopControl
   volume: number
   muted: boolean
   quality: 'high' | 'low'

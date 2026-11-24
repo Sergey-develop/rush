@@ -82,3 +82,26 @@ test('a boosted pilot entering quiet-section geometry still has time for alterna
   }
   assert.equal(passed,chart.length)
 })
+
+test('collecting a thruster while already sprinting gives a second stage on a music-paced route', () => {
+  const pace = new SongPace(Float32Array.of(22,22),100)
+  const beatmap: BeatEvent[] = Array.from({length: 48}, (_,i) => ({
+    beat: 4*(i+1), kind: i%2 ? 'right' : 'left',
+  }))
+  const picked = new Flight({bpm: 120, beatmap}), missed = new Flight({bpm: 120, beatmap})
+  picked.reset(pace)
+  missed.reset(pace)
+  let collectedAt = 0
+  for (let frame = 1; frame <= 60*40; frame++) {
+    const time = frame/60
+    picked.advance(time,{vertical:0,boost:true,targetY:-1.25})
+    missed.advance(time,{vertical:0,boost:true})
+    if (picked.state.boostSeconds > 0 && !collectedAt) collectedAt = time
+    if (collectedAt && time >= collectedAt + 1) {
+      assert.ok(picked.state.speed > 37 && missed.state.speed <= 30)
+      assert.ok(picked.state.distance > missed.state.distance + 5)
+      return
+    }
+  }
+  assert.fail('the pilot should encounter a thruster in this section')
+})

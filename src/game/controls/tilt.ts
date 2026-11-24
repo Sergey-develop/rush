@@ -30,10 +30,14 @@ export function stopTilt() {
   orientation = NaN
 }
 
-export async function toggleTilt() {
-  const enabled = tiltState.value === 'on' || tiltState.value === 'waiting'
+export function canStartTiltWithoutGesture() {
+  const sensor = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & {requestPermission?: unknown}
+  return !!sensor && !sensor.requestPermission
+}
+
+export async function enableTilt() {
+  if (tiltState.value === 'on' || tiltState.value === 'waiting') return
   stopTilt()
-  if (enabled) return
   const token = attempt
   tiltState.value = 'waiting'
   try {
@@ -41,10 +45,17 @@ export async function toggleTilt() {
     if (!sensor || (sensor.requestPermission && await sensor.requestPermission() !== 'granted')) throw new Error()
     if (token !== attempt) return
     window.addEventListener('deviceorientation',sample)
-    timeout = window.setTimeout(()=>{stopTilt(); tiltState.value='unavailable'},3500)
+    // Some phones only deliver their first reading after they move or the tab regains focus.
+    timeout = window.setTimeout(()=>{
+      if (token === attempt && tiltState.value === 'waiting') tiltState.value='unavailable'
+    },3500)
   } catch {
     if (token === attempt) tiltState.value='unavailable'
   }
+}
+
+export function calibrateTilt() {
+  if (tiltState.value === 'on') neutral = pitch
 }
 
 export function tiltHeight(sensitivity:number,invert:boolean) {

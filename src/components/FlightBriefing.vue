@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { CornerUpRight, Gauge, Layers3, ScanLine } from 'lucide-vue-next'
+import { CornerUpRight, Gauge, Shield, Layers3, ScanLine } from 'lucide-vue-next'
 import '../styles/briefing.scss'
+import type { DesktopControl } from '../game/contracts'
 import TiltControl from './TiltControl.vue'
 
-defineProps<{ touch: boolean; busy: boolean }>()
+const hidden = defineModel<boolean>('hidden', {required:true})
+const tilt = defineModel<boolean>('tilt', {required:true})
+defineProps<{ desktopControl: DesktopControl; touch: boolean; busy: boolean }>()
 defineEmits<{ start: []; back: [] }>()
 </script>
 
@@ -16,17 +19,25 @@ defineEmits<{ start: []; back: [] }>()
           <ScanLine aria-hidden="true"/>
           <div>
             <h3>Попадите в проём</h3>
-            <p v-if="touch">Коснитесь экрана на нужной высоте: сверху, в центре или снизу. Можно также вести пальцем.</p>
-            <p v-else>Двигайте мышь вверх или вниз, чтобы пролететь через проём в поле.</p>
+            <p v-if="touch">Наклоняйте телефон, чтобы попасть в проём. Для управления пальцем коснитесь экрана на нужной высоте.</p>
+            <p v-else-if="desktopControl==='mouse'">Ведите мышь вверх или вниз, чтобы попасть в проём.</p>
+            <p v-else>Удерживайте W или ↑ для подъёма, S или ↓ для снижения. Отпустите клавишу на нужной высоте.</p>
           </div>
         </li>
         <li v-if="touch">
           <Layers3 aria-hidden="true"/>
-          <TiltControl/>
+          <TiltControl v-model="tilt"/>
         </li>
         <li v-else>
           <Gauge aria-hidden="true"/>
-          <div><h3>Включите форсаж</h3><p>Зажмите левую кнопку мыши, чтобы ускориться и получать больше очков за каждый метр.</p></div>
+          <div><h3>Включите форсаж</h3><p>Удерживайте Shift, чтобы ускориться и получать больше очков за каждый метр.</p></div>
+        </li>
+        <li>
+          <Shield aria-hidden="true"/>
+          <div>
+            <h3>Подбирайте модули</h3>
+            <p>Голубое поле защитит от одного удара. Двигатель с двумя огненными струями ускорит корабль на четыре секунды.<template v-if="!touch"> Удерживайте Shift, чтобы разогнаться ещё сильнее.</template></p>
+          </div>
         </li>
         <li>
           <CornerUpRight aria-hidden="true"/>
@@ -34,11 +45,14 @@ defineEmits<{ start: []; back: [] }>()
         </li>
       </ul>
     </div>
-    <footer class="race-foot">
-      <button class="race-primary" type="button" :disabled="busy" :aria-busy="busy" @click="$emit('start')">
-        <span aria-live="polite">{{ busy ? 'Загрузка трека' : 'Начать полёт' }}</span>
-      </button>
-      <button class="race-secondary" type="button" @click="$emit('back')">Назад</button>
+    <footer>
+      <label class="briefing-choice"><input v-model="hidden" type="checkbox"/> Больше не показывать</label>
+      <div class="race-foot">
+        <button class="race-primary" type="button" :disabled="busy" :aria-busy="busy" @click="$emit('start')">
+          <span aria-live="polite">{{ busy ? 'Загрузка трека' : 'Играть' }}</span>
+        </button>
+        <button class="race-secondary" type="button" @click="$emit('back')">Назад</button>
+      </div>
     </footer>
   </section>
 </template>

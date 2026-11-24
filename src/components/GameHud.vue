@@ -49,9 +49,13 @@ onBeforeUnmount(() => cancelAnimationFrame(animation))
       <i class="hud-strike" aria-hidden="true"/>
       <strong><ResultDigits :value="hudScore" align="start"/></strong>
       <div v-if="frame.phase==='playing'" class="hud-secondary">
+        <span v-if="frame.shield" class="hud-shield">Щит готов</span>
+        <span v-if="frame.boostSeconds" class="hud-accelerator">
+          {{ frame.sprinting ? 'Двойной форсаж' : 'Ускоритель' }} · {{ Math.ceil(frame.boostSeconds) }} с
+        </span>
         <span v-if="frame.combo>1" class="hud-combo">Комбо × {{ frame.combo }}</span>
-        <span v-if="frame.boostLevel && frame.boostLevel>.03 && frame.speed" class="hud-boost">
-          Форсаж · {{ Math.round(frame.speed*3.6) }} км/ч
+        <span v-if="(frame.boostSeconds || (frame.boostLevel ?? 0)>.03) && frame.speed" class="hud-boost">
+          {{ frame.boostSeconds ? '' : 'Форсаж · ' }}{{ Math.round(frame.speed*3.6) }} км/ч
         </span>
       </div>
     </div>

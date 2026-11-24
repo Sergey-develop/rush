@@ -1,10 +1,10 @@
 // Centre the analysis window on each timestamp so a drum hit lights its fixture
 // when the listener hears its attack. No BPM, beat grid or loop length is required.
-const size = 512
-const half = size / 2
+import { TimbreAnalysis } from './TimbreLights'
 export const ACCENT_WIDTH=4 // time, strength, bass attack, upper-band attack
 
-function fftPlan() {
+function fftPlan(size: number) {
+  const half = size / 2
   const reverse = new Uint16Array(size)
   const window = new Float32Array(size)
   const cos = new Float32Array(half), sin = new Float32Array(half)
@@ -19,12 +19,18 @@ function fftPlan() {
   return {reverse,window,cos,sin}
 }
 
-/** Analyse a centred 43 ms window at 12 kHz every 5 ms. The trailing spectrum
+/** Analyse a centred 43 ms window every 5 ms. The trailing spectrum
  * rejects pitch slides, while coincident attacks across bands reinforce a drum hit. */
-export function detectAccents(pcm: Float32Array, rate: number): Float32Array {
-  if (pcm.length===0 || !Number.isFinite(rate) || rate<=0) return new Float32Array()
+export function analyseRecording(pcm: Float32Array, rate: number, clipStart = 0) {
+  if (pcm.length===0 || !Number.isFinite(rate) || rate<=0) {
+    return {attacks:new Float32Array(), voices:new Float32Array(), step:.005}
+  }
+  const size = rate >= 20000 ? 1024 : 512
+  const half = size / 2
   const hop=Math.max(1,Math.round(rate*.005)), frames=Math.ceil(pcm.length/hop)
-  const plan=fftPlan()
+  const plan=fftPlan(size)
+  const timbres = new TimbreAnalysis(frames, rate, size, hop/rate)
+  const power = new Float32Array(half)
   const real=new Float32Array(size), imag=new Float32Array(size), magnitude=new Float32Array(half)
   const history=[new Float32Array(half),new Float32Array(half)]
   const flux=Array.from({length:4},()=>new Float32Array(frames))
@@ -51,7 +57,9 @@ export function detectAccents(pcm: Float32Array, rate: number): Float32Array {
       }
     }
     const prior=history[frame%2]
-    for(let i=edges[0]-1;i<=edges[4];i++) magnitude[i]=Math.log1p(3*Math.sqrt(real[i]*real[i]+imag[i]*imag[i]))
+    for (let i=0;i<half;i++) power[i] = real[i]*real[i]+imag[i]*imag[i]
+    if (frame*hop/rate >= clipStart) timbres.measure(frame,power)
+    for(let i=edges[0]-1;i<=edges[4];i++) magnitude[i]=Math.log1p((1536/size)*Math.sqrt(power[i]))
     for(let band=0;band<4;band++) {
       let rise=0
       for(let i=edges[band];i<edges[band+1];i++) {
@@ -108,7 +116,11 @@ export function detectAccents(pcm: Float32Array, rate: number): Float32Array {
     cues[o+2]=(low/peak)**1.5
     cues[o+3]=(upper/peak)**1.5
   }
-  return cues
+  return {attacks:cues, voices:timbres.finish(), step:hop/rate}
+}
+
+export function detectAccents(pcm: Float32Array, rate: number) {
+  return analyseRecording(pcm,rate).attacks
 }
 
 export class BeatAccents {

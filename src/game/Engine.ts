@@ -8,9 +8,13 @@ import { World } from './scene/World'
 import { prepareStationSurfaces } from './scene/Station'
 import { TURN_WARNING_DISTANCE } from './types'
 
+// Beyond this gap a pilot may never see the exit of a bend before the next gate.
+const MAX_PLAYABLE_FRAME_SECONDS = .20
+
 export class Engine {
   private readonly music = new Music()
-  private readonly flight = new Flight({bpm:this.music.bpm,beatmap:this.music.events,seed:0x43525553})
+  private flight = this.createFlight()
+  private pendingSong?: Promise<void>
   private world?: World
   private menuPreparation?: Promise<void>
   private menuReady = false
@@ -39,7 +43,7 @@ export class Engine {
   private fps = 0
 
   constructor(private readonly canvas:HTMLCanvasElement,private readonly onFrame:(frame: GameFrame)=>void) {
-    this.input = new Input(canvas,()=>this.phase==='playing',()=>this.flight.state.y,()=>this.settings,
+    this.input = new Input(canvas,()=>this.phase==='playing' || this.phase==='countdown',()=>this.flight.state.y,()=>this.settings,
       ()=>{
         if (this.phase==='paused') { void this.resume();return true }
         if (this.phase==='playing' || this.phase==='countdown') { this.pause();return true }
@@ -98,19 +102,49 @@ export class Engine {
     if (this.phase === 'menu') this.world?.enterMenu()
   }
 
+  get trackTitle() { return this.music.title }
+  get customSong() { return this.music.custom }
+
+  private createFlight() {
+    return new Flight({bpm:this.music.bpm,beatmap:this.music.events,seed:0x43525553})
+  }
+
+  async selectSong(file: File | null) {
+    if (this.disposed || this.phase!=='menu' || this.starting) {
+      throw new Error('Песню можно сменить в главном меню.')
+    }
+    const request = this.music.selectTrack(file)
+    this.pendingSong = request
+    try {
+      await request
+      if (request!==this.pendingSong || this.disposed) return
+      this.flight = this.createFlight()
+      this.publish()
+    } finally {
+      if (this.pendingSong===request) this.pendingSong = undefined
+    }
+  }
+
+  cancelSongSelection() {
+    if (!this.pendingSong) return
+    this.pendingSong = undefined
+    this.music.cancelSelection()
+  }
+
   private publish() {
     const s=this.flight.state
     this.onFrame({
       phase:this.phase,countdown: Math.max(1,Math.min(3,Math.ceil(-this.simulationTime))),
       score:s.score,combo:s.combo,distance:s.distance,bpm:this.music.bpm,
       pulse:this.lastLight ? Math.min(1,.74*this.lastLight.beatFlash+.30*this.lastLight.transient+.18*this.lastLight.highs) : this.lastPulse,
+      shield:s.shield,boostSeconds:s.boostSeconds,sprinting:s.sprinting,
       altitude:s.y,reason:this.reason,speed:s.speed,boostLevel:s.boostLevel,track:this.music.title,
       hint:s.next && s.next.distance <= TURN_WARNING_DISTANCE ? s.next.kind : null,
     })
   }
 
   async start() {
-    if (this.disposed || this.starting || (this.phase!=='menu' && this.phase!=='over')) return
+    if (this.disposed || this.starting || this.pendingSong || (this.phase!=='menu' && this.phase!=='over')) return
     const token=++this.generation
     this.starting=true
     try {
@@ -156,6 +190,7 @@ export class Engine {
     } finally { this.resumePending=false }
   }
   menu() {
+    this.cancelSongSelection()
     this.generation++
     this.starting=false
     this.music.stop()
@@ -173,6 +208,7 @@ export class Engine {
   }
 
   setSettings(settings: GameSettings) {
+    if ((this.settings.desktopControl ?? 'keyboard') !== (settings.desktopControl ?? 'keyboard')) this.input.clear()
     this.settings={...settings}
     this.music.levels(settings.volume,settings.muted)
     this.world?.setQuality(settings.quality)
@@ -180,7 +216,16 @@ export class Engine {
 
   private stepFlight() {
     if (this.phase!=='playing' && this.phase!=='countdown') return
-    this.simulationTime=Math.min(this.music.elapsed,this.music.duration)
+    const elapsed = this.music.elapsed
+    const lastVisible = Math.max(0,this.simulationTime)
+    if (elapsed - lastVisible > MAX_PLAYABLE_FRAME_SECONDS) {
+      // Re-anchor the song before checking collisions. A stalled tab must not
+      // spend the player's reaction time catching up with the audio device.
+      this.simulationTime = Math.min(this.music.duration,lastVisible + 1/60)
+      this.music.recoverAt(this.simulationTime)
+    } else {
+      this.simulationTime = Math.max(this.simulationTime,Math.min(elapsed,this.music.duration))
+    }
     if (this.simulationTime<0) { this.lastPulse=0;return }
     if (this.phase==='countdown') this.phase='playing'
     const passed=this.flight.state.passed
@@ -241,6 +286,7 @@ export class Engine {
 
   dispose() {
     this.disposed=true
+    this.cancelSongSelection()
     this.generation++
     cancelAnimationFrame(this.animation)
     this.observe.abort()

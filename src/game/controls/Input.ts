@@ -2,7 +2,10 @@ import { MAX_HEIGHT, type FlightInput } from '../types'
 import type { GameSettings } from '../contracts'
 import { tiltHeight } from './tilt'
 
+const directionKeys = new Set(['KeyW','ArrowUp','KeyS','ArrowDown'])
+
 export class Input {
+  private readonly held = new Set<string>()
   private readonly listeners = new AbortController()
   private drag?: {id:number,y:number,height:number,moved:boolean}
   private target?: number
@@ -16,25 +19,29 @@ export class Input {
     window.addEventListener('keydown',e=>{
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return
       const focus = e.target as HTMLElement|null
-      if (focus?.matches('input, textarea, select, [contenteditable=true]')) return
+      if (focus?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable=false])')) return
       if (e.code==='Escape' && !e.repeat) {
         if (togglePause()) e.preventDefault()
         return
       }
+      if (!active()) return
+      const throttle = e.code==='ShiftLeft' || e.code==='ShiftRight'
+      if (!throttle && (settings().desktopControl==='mouse' || !directionKeys.has(e.code))) return
+      e.preventDefault()
+      if (!e.repeat) this.held.add(e.code)
     },opt)
-    // A desktop mouse is always live during flight. Relative input starts from
-    // the current altitude and does not require capture or a held button.
+    window.addEventListener('keyup',e=>this.held.delete(e.code),opt)
     window.addEventListener('pointermove',e=>{
-      if (e.pointerType!=='mouse' || !active()) return
+      if (e.pointerType!=='mouse') return
       if ((e.buttons & 1)===0) this.boostPointer=undefined
       const options=settings()
-      const delta=e.movementY * 10 * options.sensitivity / Math.max(180,canvas.clientHeight)
-      if (delta) {
-        const y=(this.target ?? altitude()) - delta*(options.invert?-1:1)
-        this.target=Math.max(-MAX_HEIGHT,Math.min(MAX_HEIGHT,y))
-        if (e.clientY<=1) this.target=options.invert?-MAX_HEIGHT:MAX_HEIGHT
-        if (e.clientY>=canvas.clientHeight-2) this.target=options.invert?MAX_HEIGHT:-MAX_HEIGHT
-      }
+      if (!active() || options.desktopControl!=='mouse' || !e.movementY) return
+      const sign=options.invert ? -1 : 1
+      const dy=e.movementY * 10 * options.sensitivity / Math.max(180,canvas.clientHeight)
+      const y=(this.target ?? altitude()) - sign*dy
+      this.target=Math.max(-MAX_HEIGHT,Math.min(MAX_HEIGHT,y))
+      if (e.clientY<=1) this.target=sign*MAX_HEIGHT
+      else if (e.clientY>=canvas.clientHeight-2) this.target=-sign*MAX_HEIGHT
     },opt)
     canvas.addEventListener('pointerdown',e=>{
       if (!e.isPrimary || e.button!==0) return
@@ -74,13 +81,23 @@ export class Input {
   read(): FlightInput {
     const options=this.options()
     const tilt=tiltHeight(options.sensitivity,options.invert)
+    const boost=this.held.has('ShiftLeft') || this.held.has('ShiftRight') || this.boostPointer!==undefined
+    const up=this.held.has('KeyW') || this.held.has('ArrowUp')
+    const down=this.held.has('KeyS') || this.held.has('ArrowDown')
+    if (options.desktopControl!=='mouse' && (up || down)) {
+      this.target=undefined
+      this.touchTilt=tilt
+      const vertical=(Number(up)-Number(down))*(options.invert ? -1 : 1)
+      return {vertical, verticalSensitivity:options.sensitivity, boost}
+    }
     if (!this.drag && tilt!==undefined && (this.touchTilt===undefined || Math.abs(tilt-this.touchTilt)>.18)) {
       this.touchTilt=undefined
       this.target=tilt
     }
-    return {vertical:0,targetY:this.target,boost:this.boostPointer!==undefined}
+    return {vertical:0,targetY:this.target,boost}
   }
   clear() {
+    this.held.clear()
     const id=this.boostPointer ?? this.drag?.id
     if (id!==undefined && this.canvas.hasPointerCapture(id)) this.canvas.releasePointerCapture(id)
     this.boostPointer=undefined

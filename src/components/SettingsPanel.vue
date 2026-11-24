@@ -7,7 +7,6 @@ import TiltControl from './TiltControl.vue'
 const settings=defineModel<PlayerOptions>({ required:true })
 const pointer=window.matchMedia('(pointer:coarse)')
 const touch=ref(pointer.matches)
-const sensitivity=ref<HTMLInputElement>()
 const pilot=ref<HTMLInputElement>()
 const formatSensitivity=new Intl.NumberFormat('ru-RU',{minimumFractionDigits:1,maximumFractionDigits:1})
 function updatePointer() { touch.value=pointer.matches }
@@ -33,8 +32,12 @@ onBeforeUnmount(()=>pointer.removeEventListener('change',updatePointer))
     </div>
     <div class="race-setting-line">
       <span>Управление</span>
-      <button class="race-stepper race-control-link" type="button" :aria-label="'Настроить управление '+(touch?'касанием':'мышью')" @click="show(sensitivity)">
-        <span aria-hidden="true"></span><strong>{{ touch?'Касание':'Мышь' }}</strong><ChevronRight aria-hidden="true"/>
+      <TiltControl v-if="touch" v-model="settings.tiltEnabled"/>
+      <button v-else class="race-stepper race-control-link" type="button" role="switch" aria-label="Управление с клавиатуры"
+              :aria-checked="settings.desktopControl==='keyboard'"
+              @click="settings.desktopControl=settings.desktopControl==='mouse' ? 'keyboard' : 'mouse'"
+              @keydown.left.prevent="settings.desktopControl='mouse'" @keydown.right.prevent="settings.desktopControl='keyboard'">
+        <ChevronLeft aria-hidden="true"/><strong class="flight-keys">{{ settings.desktopControl==='mouse' ? 'Мышь' : 'W/S · ↑/↓' }}</strong><ChevronRight aria-hidden="true"/>
       </button>
     </div>
     <div class="race-setting-line">
@@ -48,12 +51,11 @@ onBeforeUnmount(()=>pointer.removeEventListener('change',updatePointer))
     <button class="race-settings-more" type="button" @click="show(pilot)">Пилот и параметры полёта <ChevronRight aria-hidden="true"/></button>
   </div>
   <div class="race-settings-extra">
-    <TiltControl v-if="touch"/>
     <div class="race-setting-line">
       <label for="sensitivity">Чувствительность</label>
       <div class="race-sensitive">
         <output for="sensitivity">{{ formatSensitivity.format(settings.sensitivity) }}×</output>
-        <input id="sensitivity" ref="sensitivity" v-model.number="settings.sensitivity" class="race-range" type="range" min=".5" max="1.5" step=".1"
+        <input id="sensitivity" v-model.number="settings.sensitivity" class="race-range" type="range" min=".5" max="1.5" step=".1"
                :aria-valuetext="formatSensitivity.format(settings.sensitivity)+' ×'" :style="{'--fill':(settings.sensitivity-.5)*100+'%'}"/>
       </div>
     </div>
@@ -66,8 +68,10 @@ onBeforeUnmount(()=>pointer.removeEventListener('change',updatePointer))
              @blur="settings.pilot=settings.pilot.trim() || 'Пилот'"/>
     </div>
     <details class="race-help"><summary>Как управлять</summary>
-      <p>Ведите мышь или палец вверх и вниз, чтобы менять высоту. На поворотах направление меняется автоматически.</p>
-      <p>Удерживайте левую кнопку мыши для форсажа. На полном форсаже каждый метр приносит вдвое больше очков.</p>
+      <p v-if="touch">Наклоняйте телефон или ведите пальцем вверх и вниз, чтобы менять высоту.</p>
+      <p v-else-if="settings.desktopControl==='mouse'">Ведите мышь вверх или вниз, чтобы менять высоту.</p>
+      <p v-else>W или ↑ — набор высоты, S или ↓ — снижение. Отпустите клавишу, чтобы удерживать высоту.</p>
+      <p v-if="!touch">Удерживайте Shift для форсажа. На полном форсаже каждый метр приносит вдвое больше очков.</p>
     </details>
   </div>
 </template>

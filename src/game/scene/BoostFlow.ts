@@ -80,8 +80,7 @@ export class BoostFlow {
     transparent:true, depthTest:true, depthWrite:false, side:THREE.DoubleSide, forceSinglePass:true,
     blending:THREE.AdditiveBlending,
   })
-  private readonly mesh = new THREE.Mesh(makeRibbons(),this.material)
-  private warmup = true
+  readonly mesh = new THREE.Mesh(makeRibbons(),this.material)
 
   constructor(scene: THREE.Scene) {
     this.mesh.frustumCulled = false
@@ -89,8 +88,7 @@ export class BoostFlow {
   }
   resize(width: number,height: number) { this.uniforms.viewport.value.set(width,height) }
   update(x:number,z:number,yaw:number,distance:number,speed:number,strength:number) {
-    this.mesh.visible = this.warmup || strength > .015
-    this.warmup = false
+    this.mesh.visible = strength > .015
     this.uniforms.strength.value = strength
     if (!this.mesh.visible) return
     this.mesh.position.set(x,0,z)

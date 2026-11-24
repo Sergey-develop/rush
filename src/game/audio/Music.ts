@@ -1,5 +1,6 @@
 import type { BeatEvent } from '../types'
 import { synthesizeLoop } from './synth'
+import { TimbreLights } from './TimbreLights'
 import { Spectrum } from './response'
 import { BeatAccents } from './BeatAccents'
 import { SongPace } from './SongPace'
@@ -16,10 +17,43 @@ const recording = chart?.file
   ? recordings['../../assets/music/' + chart.file]
   : Object.values(recordings)[0]
 
+const bundledBpm = Math.min(240, Math.max(50, Number(chart?.bpm) || 172))
+const bundledTitle = chart?.title ?? 'Phase Line'
+
+interface TrackAudio {
+  file: File | null
+  buffer: AudioBuffer
+  offset: number
+  bpm: number
+  accents: BeatAccents
+  voices: TimbreLights
+  pace: SongPace
+}
+
+function stereoAnalysisChannel(buffer: AudioBuffer) {
+  if (buffer.numberOfChannels !== 2) return null
+  const left = buffer.getChannelData(0), right = buffer.getChannelData(1)
+  const stride = Math.max(1,Math.floor(buffer.length/16000))
+  let a=0, b=0, sum=0
+  for (let i=0;i<buffer.length;i+=stride) {
+    a += left[i]**2
+    b += right[i]**2
+    sum += (left[i]+right[i])**2
+  }
+  // Some stereo recordings cancel in a mono downmix although both channels are audible.
+  return sum < .10*(a+b) ? (a>=b ? 0 : 1) : null
+}
+
 export class Music {
-  readonly bpm = Math.min(240, Math.max(50, Number(chart?.bpm) || 172))
-  readonly title = chart?.title ?? 'Phase Line'
-  readonly events = chart?.events ?? []
+  private track?: TrackAudio
+  private disposed = false
+  private loading?: Promise<void>
+  private loadController?: AbortController
+  get bpm() { return this.track?.bpm ?? bundledBpm }
+  get title() { return this.track?.file?.name.replace(/\.[^./]+$/, '').trim() || (this.custom ? 'Своя песня' : bundledTitle) }
+  get custom() { return !!this.track?.file }
+  get events() { return this.custom ? [] : chart?.events ?? [] }
+
   private context?: AudioContext
   private output?: GainNode
   private songGain?: GainNode
@@ -28,21 +62,17 @@ export class Music {
   private stopBackspin?: () => void
   private notes = new Set<AudioScheduledSourceNode>()
   private scheduleRelay?: ReturnType<typeof createStartRelay>
-  private buffer?: AudioBuffer
-  private accents?: BeatAccents
-  private sectionPace?: SongPace
-  private loading?: Promise<void>
-  private cancelAnalysis?: () => void
-  private disposed=false
   private previousLightFrame = 0
   private displayInterval = 1/60
   private startedAt = 0
+  private playbackFloor = -Infinity
   private stoppedAt: number | undefined = 0
-  private offset = 0
+  private get offset() { return this.track?.offset ?? 0 }
   private volume = 0.65
   private muted = false
 
   async prepare() {
+    if (this.disposed) throw new DOMException('Плеер закрыт.','AbortError')
     if (!this.context) {
       // Ask mobile browsers to route the soundtrack through media playback.
       const session = (navigator as Navigator & {audioSession?: {type:string}}).audioSession
@@ -64,50 +94,105 @@ export class Music {
       unlock.start()
     }
     await this.context.resume()
-    if (!this.buffer) {
-      this.loading ??= this.load().finally(() => { this.loading = undefined })
-      await this.loading
-    }
+    if (this.disposed) throw new DOMException('Плеер закрыт.','AbortError')
+    if (this.loading) await this.loading
+    if (!this.track) await this.loadTrack(null)
   }
 
-  private async load() {
-    if (chart?.file && !recording) throw new Error('Аудиофайл из карты ритма не найден.')
-    let buffer:AudioBuffer
-    if (recording) {
-      const response = await fetch(recording)
+  async selectTrack(file: File | null) {
+    if (this.disposed) throw new DOMException('Плеер закрыт.','AbortError')
+    this.cancelSelection()
+    if (!file) {
+      if (this.custom) this.track = undefined
+      this.stoppedAt = 0
+      return
+    }
+    if (this.track?.file !== file) await this.loadTrack(file)
+  }
+
+  cancelSelection() {
+    this.loadController?.abort()
+    this.loadController = undefined
+    this.loading = undefined
+  }
+
+  private loadTrack(file: File | null) {
+    const controller = new AbortController()
+    this.loadController = controller
+    this.loading = this.analyseTrack(file,controller.signal).then(track=>{
+      controller.signal.throwIfAborted()
+      this.track = track
+      this.stoppedAt = 0
+    }).finally(()=>{
+      if (this.loadController === controller) {
+        this.loading = undefined
+        this.loadController = undefined
+      }
+    })
+    return this.loading
+  }
+
+  private async analyseTrack(file: File | null, signal: AbortSignal): Promise<TrackAudio> {
+    let buffer: AudioBuffer
+    if (file) {
+      const contents = await file.arrayBuffer()
+      signal.throwIfAborted()
+      try {
+        // A file picker can return after user activation expires. Decoding needs no live output.
+        const decoder = this.context ?? new OfflineAudioContext(2,1,48000)
+        buffer = await decoder.decodeAudioData(contents)
+      } catch {
+        signal.throwIfAborted()
+        throw new Error('Не удалось прочитать аудиофайл. Попробуйте другой файл, например MP3 или WAV.')
+      }
+    } else if (recording) {
+      const response = await fetch(recording,{signal})
       if (!response.ok) throw new Error('Не удалось загрузить звуковую дорожку.')
       buffer = await this.context!.decodeAudioData(await response.arrayBuffer())
     } else {
-      buffer = await synthesizeLoop(this.bpm)
+      if (chart?.file) throw new Error('Аудиофайл из карты ритма не найден.')
+      buffer = await synthesizeLoop(bundledBpm)
     }
-    if(this.disposed) return
-    this.offset=recording ? Number(chart?.offsetSeconds??0) : 0
-    if(!Number.isFinite(this.offset) || this.offset<0 || this.offset>=buffer.duration)
-      throw new Error('Некорректное время начала записи в карте ритма.')
-    // Web Audio band-limits the downsample. The worker measures the complete song
-    // before count-in so quiet breaks and off-grid accents work on the first play.
-    const rate=12000
+    signal.throwIfAborted()
+    const offset = !file && recording ? Number(chart?.offsetSeconds??0) : 0
+    if (!Number.isFinite(offset) || offset < 0 || offset >= buffer.duration) {
+      throw new Error('Некорректное время начала записи.')
+    }
+
+    // Analyse a band-limited mono copy while keeping the decoded source in its original channels.
+    const rate=24000
     const offline=new OfflineAudioContext(1,Math.ceil(buffer.duration*rate),rate)
     const analysisSource=offline.createBufferSource()
     analysisSource.buffer=buffer
-    analysisSource.connect(offline.destination)
+    const channel = file ? stereoAnalysisChannel(buffer) : null
+    if (channel === null) analysisSource.connect(offline.destination)
+    else {
+      const splitter=offline.createChannelSplitter(2)
+      analysisSource.connect(splitter)
+      splitter.connect(offline.destination,channel,0)
+    }
     analysisSource.start()
     const mono=await offline.startRendering()
-    if(this.disposed) return
+    signal.throwIfAborted()
     const pcm=mono.getChannelData(0).slice()
     const worker=new Worker(new URL('./accents.worker.ts',import.meta.url),{type:'module'})
+    let abort: (()=>void) | undefined
     try {
-      const {cues,pace}=await new Promise<{cues:Float32Array;pace:Float32Array}>((resolve,reject)=>{
-        this.cancelAnalysis=()=>reject(new Error('Анализ записи остановлен.'))
+      const {bpm,cues,pace,voices,step}=await new Promise<{
+        bpm:number; cues:Float32Array; pace:Float32Array; voices:Float32Array; step:number
+      }>((resolve,reject)=>{
+        abort=()=>reject(signal.reason)
+        signal.addEventListener('abort',abort,{once:true})
         worker.onmessage=({data})=>resolve(data)
         worker.onerror=event=>reject(new Error(event.message || 'Не удалось проанализировать запись.'))
-        worker.postMessage({pcm,rate,bpm:this.bpm,offset:this.offset},[pcm.buffer])
+        worker.postMessage({pcm,rate,bpm:file ? undefined : bundledBpm,offset},[pcm.buffer])
       })
-      this.accents=new BeatAccents(cues)
-      this.sectionPace=new SongPace(pace,buffer.duration-this.offset)
-      this.buffer=buffer
+      return {
+        file, buffer, offset, bpm, accents:new BeatAccents(cues),
+        voices:new TimbreLights(voices,step), pace:new SongPace(pace,buffer.duration-offset),
+      }
     } finally {
-      this.cancelAnalysis=undefined
+      if (abort) signal.removeEventListener('abort',abort)
       worker.terminate()
     }
   }
@@ -118,22 +203,44 @@ export class Music {
     this.previousLightFrame=0
     this.displayInterval=1/60
     const ctx = this.context!
-    const source = ctx.createBufferSource()
-    source.buffer = this.buffer!
     this.songGain!.gain.cancelScheduledValues(ctx.currentTime)
     this.songGain!.gain.setValueAtTime(1,ctx.currentTime)
-    source.connect(this.songGain!)
     // Give the driver one short lead-in. Every contact and the song share this clock.
     const firstContact = ctx.currentTime + .012
-    this.startedAt = firstContact + countdown
-    source.start(this.startedAt,this.offset)
-    this.source = source
+    this.playbackFloor = -Infinity
+    this.playRecording(firstContact + countdown,0)
     this.stoppedAt=undefined
     this.scheduleRelay!(this.startedAt, countdown, (buffer, time) => this.playContact(buffer, time))
   }
 
-  get duration() { return this.buffer ? this.buffer.duration-this.offset : 0 }
-  get pace() { return this.sectionPace }
+  private playRecording(when: number, seconds: number) {
+    const source = this.context!.createBufferSource()
+    source.buffer = this.track!.buffer
+    source.connect(this.songGain!)
+    source.start(when,this.offset+seconds)
+    this.source = source
+    this.startedAt = when-seconds
+  }
+
+  recoverAt(seconds: number) {
+    const ctx = this.context, previous = this.source
+    if (!ctx || !previous || this.stoppedAt!==undefined || seconds>=this.duration) return
+    const now = ctx.currentTime, cut = now+.008
+    const gain = this.songGain!.gain
+    gain.cancelScheduledValues(now)
+    gain.setValueAtTime(1,now)
+    gain.linearRampToValueAtTime(0,cut)
+    previous.onended = ()=>previous.disconnect()
+    previous.stop(cut)
+    this.stopNotes()
+    this.spectrum!.reset()
+    this.playbackFloor = seconds
+    this.playRecording(cut,seconds)
+    gain.linearRampToValueAtTime(1,cut+.012)
+  }
+
+  get duration() { return this.track ? this.track.buffer.duration-this.track.offset : 0 }
+  get pace() { return this.track?.pace }
 
   get elapsed() {
     if(this.stoppedAt!==undefined) return this.stoppedAt
@@ -150,7 +257,7 @@ export class Music {
     const outputTime=typeof presented==='number' && age>=-.12 && age<.35
       ? Math.max(0,Math.min(ctx.currentTime,presented+age))
       : Math.max(0,ctx.currentTime-deviceLatency)
-    return outputTime-this.startedAt
+    return Math.max(this.playbackFloor,outputTime-this.startedAt)
   }
   sampleLight(seconds=this.elapsed) {
     const light=this.spectrum!.sample(this.context!.currentTime)
@@ -163,11 +270,17 @@ export class Music {
     const lead=this.stoppedAt===undefined && this.context!.state==='running'
       ? Math.min(.024,this.displayInterval*.83) : 0
     const accent=seconds<0 || seconds>=this.duration ? {index:0,flash:0,warm:0,cool:0}
-      : this.accents!.at(this.offset+seconds+lead,this.offset)
+      : this.track!.accents.at(this.offset+seconds+lead,this.offset)
+    this.track!.voices.sample(seconds < 0 || seconds >= this.duration ? -1 : this.offset+seconds+lead, light)
     light.beatIndex=accent.index
-    light.beatFlash=accent.flash
-    light.warmFlash=accent.warm
-    light.coolFlash=accent.cool
+    // Pulse selection identifies the beat, while the prominence of its actual voices
+    // limits how much it can light the gate and HUD. Geometry still uses the original cues.
+    const upper = Math.max(light.snare ?? 0, light.hat ?? 0)
+    const attack = Math.max(light.kick ?? 0, upper)
+    light.transient=Math.min(light.transient,attack)
+    light.beatFlash=Math.min(accent.flash,attack)
+    light.warmFlash=Math.min(accent.warm,light.kick ?? 0)
+    light.coolFlash=Math.min(accent.cool,upper)
     return light
   }
   get suspended() { return !!this.context && this.context.state !== 'running' }
@@ -204,14 +317,14 @@ export class Music {
   }
   hit() {
     const ctx=this.context, source=this.source
-    if (!ctx || !source || !this.buffer || !this.output || !this.songGain || this.stoppedAt!==undefined) return
+    if (!ctx || !source || !this.track || !this.output || !this.songGain || this.stoppedAt!==undefined) return
     this.stoppedAt=Math.min(this.duration,this.elapsed)
     this.stopNotes()
     // Anchor at the forward source's actual audio read head. Its already-queued
     // speaker samples remain contiguous with the start of the reverse gesture.
     const cut=ctx.currentTime+.006
     const head=this.offset+Math.min(this.duration,Math.max(0,cut-this.startedAt))
-    this.stopBackspin=playBackspin(ctx,this.output,this.buffer,this.offset,head,cut,()=>{
+    this.stopBackspin=playBackspin(ctx,this.output,this.track.buffer,this.offset,head,cut,()=>{
       this.stopBackspin=undefined
     })
     const gain=this.songGain.gain
@@ -242,8 +355,8 @@ export class Music {
     }
   }
   dispose() {
-    this.disposed=true
-    this.cancelAnalysis?.()
+    this.disposed = true
+    this.cancelSelection()
     this.stop()
     this.songGain?.disconnect()
     this.spectrum?.analyser.disconnect()
